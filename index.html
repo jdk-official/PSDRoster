@@ -29,24 +29,24 @@
   }
   h1 { font-size: 1.4rem; margin: 0 0 4px; letter-spacing: 0.5px; }
   .sub { color: #9fb0c4; font-size: 0.85rem; margin-bottom: 16px; }
-  .controls { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-  .controls button {
-    background: var(--panel); color: #cdd9e8; border: 1px solid #3d506b;
-    padding: 8px 14px; border-radius: 8px; font-size: 0.85rem; cursor: pointer; font-weight: 600;
-  }
-  .controls button.active { background: var(--accent); color: #10220a; border-color: var(--accent); }
-  .controls button#editBtn { margin-left: auto; }
-  .controls button#editBtn.unlocked { background: var(--accent); color: #10220a; border-color: var(--accent); }
+  /* Sortable column headers (the sort control lives in the table itself). */
+  thead th[data-sort] { cursor: pointer; user-select: none; }
+  thead th[data-sort]:hover { color: #e8eef5; }
+  thead th.sorted { color: var(--accent); }
+  thead th.sorted::after { content: " \25BE"; }
+  #editBtn.unlocked { background: var(--accent); color: #10220a; border-color: var(--accent); }
   body.readonly td.editable, body.readonly td.core, body.readonly td.vote,
   body.readonly td.subm, body.readonly td.appr,
   body.readonly .editable-str, body.readonly .note-btn { cursor: default; }
   body.readonly td.editable:hover { text-decoration: none; }
   body.readonly .note-btn { display: none; }
   body.readonly .tag:hover { outline: none; }
-  .summary { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
-  .stat { background: var(--panel); border-radius: 10px; padding: 10px 14px; flex: 1; min-width: 100px; }
-  .stat .label { font-size: 0.7rem; color: #9fb0c4; text-transform: uppercase; letter-spacing: 0.5px; }
-  .stat .val { font-size: 1.1rem; font-weight: 700; margin-top: 2px; }
+  /* One slim stats strip instead of separate tiles. */
+  .summary { display: flex; flex-wrap: wrap; background: var(--panel); border-radius: 10px; padding: 2px 0; margin-bottom: 12px; }
+  .stat { padding: 6px 14px; flex: 1; min-width: 0; border-right: 1px solid #3d506b; }
+  .stat:last-child { border-right: none; }
+  .stat .label { font-size: 0.65rem; color: #9fb0c4; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+  .stat .val { font-size: 0.95rem; font-weight: 700; margin-top: 1px; white-space: nowrap; }
   .stat .substat { font-size: 0.7rem; font-weight: 600; color: #9fb0c4; margin-top: 3px; white-space: nowrap; }
   /* Farm "RSS feed" ticker */
   .farm-ticker { display: flex; align-items: center; gap: 0; background: #142033; border: 1px solid #3d506b; border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
@@ -227,12 +227,9 @@
     body { padding: 10px; }
     h1 { font-size: 1.2rem; }
     .sub { font-size: 0.76rem; }
-    .summary { gap: 8px; }
-    .stat { flex: 1 1 calc(33.33% - 8px); min-width: 0; padding: 8px; }
-    .stat .label { font-size: 0.62rem; }
-    .stat .val { font-size: 0.95rem; }
-    .controls { gap: 6px; }
-    .controls button { padding: 7px 9px; font-size: 0.78rem; }
+    .stat { flex: 1 1 calc(33.33% - 1px); padding: 5px 8px; border-right: none; }
+    .stat .label { font-size: 0.6rem; }
+    .stat .val { font-size: 0.85rem; }
 
     .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     thead th { padding: 6px 4px; font-size: 0.6rem; }
@@ -281,21 +278,6 @@
     <div class="stat"><div class="label">Transfer Progress</div><div class="val" id="transferStats">&mdash;</div></div>
   </div>
 
-  <div class="controls">
-    <button data-sort="thp" class="active">Sort by THP</button>
-    <button data-sort="kills">Sort by Kills</button>
-    <button data-sort="squad1">Sort by Squad 1</button>
-    <button data-sort="seat">Sort by Seat</button>
-    <button data-sort="season">Sort by Season Score</button>
-    <button data-sort="core">Core first</button>
-    <button data-sort="name">Sort by Name</button>
-    <button id="editBtn" title="Unlock editing with the password">&#128274; Edit</button>
-    <button id="importBtn" title="Import stats from a screenshot">&#11014; Import</button>
-    <button id="exportBtn" title="Download roster (with seat estimates) as CSV for Google Sheets / Excel">&#11015; Export CSV</button>
-    <button id="nutsBtn" title="Export the Core shortlist in the planning-sheet format">&#129372; Get the Nuts</button>
-    <button id="refreshBtn" title="Reload shared data">&#8635; Refresh</button>
-  </div>
-
   <div class="import-panel" id="importPanel" hidden>
     <h2>Import stats from a screenshot</h2>
     <div class="import-row">
@@ -329,6 +311,11 @@
     <button id="apprFilterBtn" class="toggle" title="Cycle: all → approved only → not approved">&#129309; Approved</button>
     <button id="expandAllBtn" class="toggle" title="Expand/collapse all member details">&#9662; Expand all</button>
     <span class="result-count" id="resultCount"></span>
+    <button id="editBtn" class="toggle" title="Unlock editing with the password">&#128274; Edit</button>
+    <button id="importBtn" class="toggle" title="Import stats from a screenshot">&#11014; Import</button>
+    <button id="exportBtn" class="toggle" title="Download roster as CSV for Google Sheets / Excel">&#11015; Export CSV</button>
+    <button id="nutsBtn" class="toggle" title="Export the Core shortlist in the planning-sheet format">&#129372; Get the Nuts</button>
+    <button id="refreshBtn" class="toggle" title="Reload shared data">&#8635; Refresh</button>
   </div>
 
   <div class="table-wrap">
@@ -336,20 +323,20 @@
     <thead>
       <tr>
         <th>#</th>
-        <th>Commander</th>
-        <th class="core">Core</th>
+        <th data-sort="name" title="Tap to sort by name">Commander</th>
+        <th class="core" data-sort="core" title="Tap to sort core first">Core</th>
         <th class="vote">Voted Yes</th>
         <th class="subm" title="Transfer application submitted">📨</th>
         <th class="appr" title="Transfer approved">🤝</th>
         <th class="talliance">Target Alliance</th>
-        <th class="num">THP</th>
-        <th class="num">Kills</th>
-        <th class="num">Squad 1</th>
+        <th class="num sorted" data-sort="thp" title="Tap to sort by THP">THP</th>
+        <th class="num" data-sort="kills" title="Tap to sort by kills">Kills</th>
+        <th class="num" data-sort="squad1" title="Tap to sort by Squad 1">Squad 1</th>
         <th class="sqtype">Squad Type</th>
-        <th class="seatcolour">Seat Colour</th>
+        <th class="seatcolour" data-sort="seat" title="Tap to sort by seat estimate">Seat Colour</th>
         <th class="t11">T11</th>
         <th class="num season">Season Rank</th>
-        <th class="num season">Season Score</th>
+        <th class="num season" data-sort="season" title="Tap to sort by season score">Season Score</th>
       </tr>
     </thead>
     <tbody id="tbody"></tbody>
@@ -1649,11 +1636,12 @@
   }
 
   // ---- Wiring ---------------------------------------------------------------
-  document.querySelectorAll('.controls button[data-sort]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.controls button[data-sort]').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      render(btn.dataset.sort);
+  // Column headers are the sort control: tap a header with data-sort to sort by it.
+  document.querySelectorAll('thead th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      document.querySelectorAll('thead th[data-sort]').forEach(t => t.classList.remove('sorted'));
+      th.classList.add('sorted');
+      render(th.dataset.sort);
     });
   });
 
