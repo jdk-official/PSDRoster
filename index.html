@@ -28,7 +28,7 @@
     padding: 16px;
   }
   h1 { font-size: 1.4rem; margin: 0 0 4px; letter-spacing: 0.5px; }
-  .sub { color: #9fb0c4; font-size: 0.85rem; margin-bottom: 16px; }
+  .sub { color: #9fb0c4; font-size: 0.85rem; }
   /* Sortable column headers (the sort control lives in the table itself). */
   thead th[data-sort] { cursor: pointer; user-select: none; }
   thead th[data-sort]:hover { color: #e8eef5; }
@@ -135,7 +135,14 @@
   td.editable:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
   input.cell-edit { width: 84px; text-align: right; background: #fff; color: var(--text-dark); border: 1px solid var(--accent); border-radius: 4px; padding: 4px; font-size: 0.85rem; font-weight: 700; font-variant-numeric: tabular-nums; }
   input.note-edit { width: 170px; max-width: 100%; background: #fff; color: var(--text-dark); border: 1px solid var(--accent); border-radius: 4px; padding: 4px; font-size: 0.82rem; }
-  .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+  /* Masthead: identity left, rare-use actions right. */
+  .masthead { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .actions button { background: var(--panel); color: #cdd9e8; border: 1px solid #3d506b; padding: 7px 11px; border-radius: 8px; font-size: 0.8rem; cursor: pointer; font-weight: 600; }
+  .actions button:hover { background: #35465f; }
+  /* Filter bar: glued to the table it operates on. */
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: var(--panel); padding: 8px; border-radius: 10px 10px 0 0; margin-bottom: 0; }
+  .toolbar .search-box, .toolbar select, .toolbar .toggle { background: var(--bg); }
   .search-box { flex: 1; min-width: 150px; background: var(--panel); color: #fff; border: 1px solid #3d506b; border-radius: 8px; padding: 8px 12px; font-size: 0.9rem; }
   .search-box::placeholder { color: #7e90a6; }
   .toolbar .toggle { background: var(--panel); color: #cdd9e8; border: 1px solid #3d506b; padding: 8px 12px; border-radius: 8px; font-size: 0.82rem; cursor: pointer; font-weight: 600; }
@@ -263,8 +270,19 @@
 </style>
 </head>
 <body>
-  <h1>&#128668; Swirrel's RSS Farm Roster</h1>
-  <div class="sub">Total Hero Power &amp; Kills &middot; tap a header to sort &middot; tap &#9733; to mark core</div>
+  <div class="masthead">
+    <div class="masthead-id">
+      <h1>&#128668; Swirrel's RSS Farm Roster</h1>
+      <div class="sub">Total Hero Power &amp; Kills &middot; tap a header to sort &middot; tap &#9733; to mark core</div>
+    </div>
+    <div class="actions">
+      <button id="editBtn" title="Unlock editing with the password">&#128274; Edit</button>
+      <button id="importBtn" title="Import stats from a screenshot">&#11014; Import</button>
+      <button id="exportBtn" title="Download roster as CSV for Google Sheets / Excel">&#11015; Export CSV</button>
+      <button id="nutsBtn" title="Export the Core shortlist in the planning-sheet format">&#129372; Get the Nuts</button>
+      <button id="refreshBtn" title="Reload shared data">&#8635; Refresh</button>
+    </div>
+  </div>
 
   <!-- Live "RSS feed" from the alliance farm (a running joke — Sippu is the
        farm). Hidden until the member record carries farm* values. -->
@@ -340,11 +358,6 @@
     <button id="apprFilterBtn" class="toggle" title="Cycle: all → approved only → not approved">&#129309; Approved</button>
     <button id="expandAllBtn" class="toggle" title="Expand/collapse all member details">&#9662; Expand all</button>
     <span class="result-count" id="resultCount"></span>
-    <button id="editBtn" class="toggle" title="Unlock editing with the password">&#128274; Edit</button>
-    <button id="importBtn" class="toggle" title="Import stats from a screenshot">&#11014; Import</button>
-    <button id="exportBtn" class="toggle" title="Download roster as CSV for Google Sheets / Excel">&#11015; Export CSV</button>
-    <button id="nutsBtn" class="toggle" title="Export the Core shortlist in the planning-sheet format">&#129372; Get the Nuts</button>
-    <button id="refreshBtn" class="toggle" title="Reload shared data">&#8635; Refresh</button>
   </div>
 
   <div class="table-wrap">
