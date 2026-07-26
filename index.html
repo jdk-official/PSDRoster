@@ -731,7 +731,7 @@
   // Access model is unchanged: the URL is public in this page, and writes are
   // deterred by the soft password gate. Setup: docs/firebase-setup.md.
   const FIREBASE = {
-    dbUrl: '',     // Realtime Database URL, e.g. 'https://psd-roster-default-rtdb.europe-west1.firebasedatabase.app' — no trailing slash
+    dbUrl: 'https://roster-ae459-default-rtdb.europe-west1.firebasedatabase.app',
     path: 'store'
   };
   const LOCAL_KEY = 'up7-state';
@@ -865,8 +865,12 @@
       if (Array.isArray(rec.stormPlans)) stormPlans = rec.stormPlans;
       if (Array.isArray(rec.squadSnapshots)) squadSnapshots = rec.squadSnapshots;
       if (Array.isArray(rec.weeklyReports)) weeklyReports = rec.weeklyReports;
-      syncedCore = new Set(core);   // baseline: what the remote has right now
-      syncedVoted = new Set(votedYes);
+      // Baselines must reflect what the REMOTE holds, not our post-adoption
+      // local state — otherwise local-only names count as "unchanged" and the
+      // next merge drops them (seen once: seeding an empty store wrote empty
+      // core/votedYes because baseline was taken from the local cache).
+      syncedCore = new Set(Array.isArray(rec.core) ? rec.core : []);
+      syncedVoted = new Set(Array.isArray(rec.votedYes) ? rec.votedYes : []);
       if (Array.isArray(rec.roster) && rec.roster.length) {
         roster = rec.roster;
       } else {
