@@ -346,6 +346,8 @@
   .ops-actions { display: flex; gap: 8px; align-items: center; }
   .ops-copy.snap-del { color: var(--lw-red); background: var(--lw-red-glow); border-color: var(--lw-red-border); }
   .ops-copy.snap-del:hover { background: rgba(248,113,113,0.2); box-shadow: none; }
+  #stormPlanner .ops-chip[data-role], #stormPlanner .ops-chip[data-rsvp] { cursor: pointer; }
+  body.readonly #stormPlanner .ops-chip[data-role], body.readonly #stormPlanner .ops-chip[data-rsvp] { cursor: default; }
   footer { margin-top: 16px; color: #8fa3b8; font-size: 0.75rem; text-align: center; }
 
   /* ---- Phone layout: shrink the roster table so it fits without the whole
@@ -576,6 +578,7 @@
         </div>
         <div class="ops-actions">
           <button id="exportOpsCsv" class="ops-copy">CSV</button>
+          <button id="exportReportPng" class="ops-copy">PNG</button>
           <button id="copyWeeklyReport" class="ops-copy">Copy Report</button>
         </div>
       </div>
@@ -1580,6 +1583,44 @@
     ].join('\n');
   }
 
+  // Saved plans carry per-commander role + RSVP maps, edited on a board that
+  // replaces the live auto-draft tables while the plan is selected.
+  const ROLE_CYCLE = ['', 'Rally lead', 'Filler', 'Scout', 'Crate runner', 'Hospital guard', 'Flex'];
+  const RSVP_CYCLE = ['', 'Yes', 'Maybe', 'No'];
+  const RSVP_TONE = { Yes: 'on', Maybe: 'warn', No: 'bad' };
+
+  function stormBoardTable(title, names, plan) {
+    const rows = names.map(n => {
+      const role = (plan.roles || {})[n] || '';
+      const rsvp = (plan.rsvp || {})[n] || '';
+      return '<tr><td>' + escAttr(n) + '</td>' +
+        '<td><span class="ops-chip ' + (role ? 'mid' : 'off') + '" data-role="' + escAttr(n) + '">' + (role ? escAttr(role) : 'role') + '</span></td>' +
+        '<td><span class="ops-chip ' + (rsvp ? RSVP_TONE[rsvp] : 'off') + '" data-rsvp="' + escAttr(n) + '">' + (rsvp ? escAttr(rsvp) : 'RSVP') + '</span></td></tr>';
+    }).join('');
+    return '<div class="feature-card"><h3>' + escAttr(title) + '</h3><table class="ops-table"><thead><tr><th>Commander</th><th>Role</th><th>RSVP</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  }
+
+  function buildPlanTextFromStored(plan) {
+    const roles = plan.roles || {}, rsvp = plan.rsvp || {};
+    const roleLines = Object.keys(roles).filter(n => roles[n]).map(n => n + ' (' + roles[n] + ')');
+    const counts = { Yes: 0, Maybe: 0, No: 0 };
+    Object.values(rsvp).forEach(v => { if (counts[v] != null) counts[v]++; });
+    const total = (plan.starters || []).reduce((s, t) => s + t.length, 0) + (plan.substitutes || []).length;
+    const answered = counts.Yes + counts.Maybe + counts.No;
+    return [
+      'DESERT STORM PLAN — ' + plan.title,
+      'Team A: ' + ((plan.starters || [])[0] || []).join(', '),
+      'Team B: ' + ((plan.starters || [])[1] || []).join(', '),
+      'Subs: ' + ((plan.substitutes || []).join(', ') || 'TBC')
+    ].concat(roleLines.length ? ['Roles: ' + roleLines.join(', ')] : [])
+     .concat(answered ? ['RSVP: Yes ' + counts.Yes + ' · Maybe ' + counts.Maybe + ' · No ' + counts.No + ' · unanswered ' + Math.max(0, total - answered)] : [])
+     .concat([
+       'Opening: secure Hospitals, then Research/Information buffs.',
+       'Mid fight: rally Nuclear Silo, keep fillers rotating, call hospital swaps early.',
+       'Late fight: Oil Wells and crate runners flex by score gap.'
+     ]).join('\n');
+  }
+
   function renderStormPlanBar() {
     const bar = document.getElementById('stormPlanBar');
     if (!bar) return;
@@ -1594,7 +1635,32 @@
   function wireStormPlans() {
     const bar = document.getElementById('stormPlanBar');
     const textEl = document.getElementById('stormPlanText');
+    const board = document.getElementById('stormPlanner');
     if (!bar || !textEl) return;
+    if (board) board.addEventListener('click', e => {
+      const roleChip = e.target.closest('[data-role]');
+      const rsvpChip = e.target.closest('[data-rsvp]');
+      const sync = e.target.closest('#stormSyncText');
+      if (!roleChip && !rsvpChip && !sync) return;
+      if (!requireEdit()) return;
+      const plan = stormPlans.find(p => p.id === selectedStormPlan && !p.deleted);
+      if (!plan) return;
+      if (sync) {
+        plan.text = buildPlanTextFromStored(plan);
+        statusEl.textContent = 'Plan text rebuilt from the board.';
+      } else if (roleChip) {
+        const n = decode(roleChip.getAttribute('data-role'));
+        plan.roles = plan.roles || {};
+        plan.roles[n] = ROLE_CYCLE[(ROLE_CYCLE.indexOf(plan.roles[n] || '') + 1) % ROLE_CYCLE.length] || '';
+      } else {
+        const n = decode(rsvpChip.getAttribute('data-rsvp'));
+        plan.rsvp = plan.rsvp || {};
+        plan.rsvp[n] = RSVP_CYCLE[(RSVP_CYCLE.indexOf(plan.rsvp[n] || '') + 1) % RSVP_CYCLE.length] || '';
+      }
+      plan.updatedAt = Date.now();
+      renderOpsPlanner();
+      scheduleOpsSave();
+    });
     bar.addEventListener('click', e => {
       const del = e.target.closest('[data-del]');
       if (del) {
@@ -1814,14 +1880,10 @@
     statusEl.textContent = 'Exported ops report for ' + sorted.length + ' commanders.';
   }
 
-  // Render the displayed Storm plan to a shareable PNG (for Discord/WhatsApp).
-  // Styled like the ops panels: dark card, mono text, amber header band.
-  function exportStormPNG() {
-    const src = document.getElementById('stormPlanText');
-    if (!src || !src.textContent.trim()) return;
-    const selPlan = selectedStormPlan ? stormPlans.find(p => p.id === selectedStormPlan && !p.deleted) : null;
-    const title = selPlan ? selPlan.title : 'Live draft · ' + isoDate(new Date());
-    const lines = src.textContent.split('\n').filter(l => l !== 'DESERT STORM DRAFT PLAN');
+  // Render ops text (Storm plan / weekly report) to a shareable PNG.
+  // Styled like the ops panels: dark card, mono text, tinted header band.
+  function exportOpsPNG(opts) {
+    const lines = opts.text.split('\n').filter(l => !opts.skip || l.indexOf(opts.skip) !== 0);
     // Wrap long lines (team lists) at ~72 chars, breaking on ', ' where possible.
     const wrapped = [];
     lines.forEach(l => {
@@ -1841,14 +1903,14 @@
     ctx.scale(scale, scale);
     ctx.fillStyle = '#0d1117';
     ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = 'rgba(245,158,11,0.10)';
+    ctx.fillStyle = opts.accent + '1a'; // 8-digit hex: accent at ~10% alpha
     ctx.fillRect(0, 0, w, headH);
-    ctx.fillStyle = '#f59e0b';
+    ctx.fillStyle = opts.accent;
     ctx.font = '700 11px "JetBrains Mono", monospace';
-    ctx.fillText('PSD ALLIANCE OPS · DESERT STORM', pad, 26);
+    ctx.fillText(opts.kicker, pad, 26);
     ctx.fillStyle = '#eaecf0';
     ctx.font = '700 19px Outfit, sans-serif';
-    ctx.fillText(title, pad, 50);
+    ctx.fillText(opts.title, pad, 50);
     wrapped.forEach((l, i) => {
       const y = headH + pad + i * lh;
       const m = l.match(/^([A-Za-z ]{2,12}):\s(.*)$/);
@@ -1866,12 +1928,40 @@
     c.toBlob(blob => {
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'psd-storm-plan-' + new Date().toISOString().slice(0, 10) + '.png';
+      a.download = opts.filename + new Date().toISOString().slice(0, 10) + '.png';
       document.body.appendChild(a);
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-      statusEl.textContent = 'Storm plan exported as ' + a.download + ' — share it in alliance chat.';
+      statusEl.textContent = 'Exported ' + a.download + ' — share it in alliance chat.';
+    });
+  }
+
+  function exportStormPNG() {
+    const src = document.getElementById('stormPlanText');
+    if (!src || !src.textContent.trim()) return;
+    const selPlan = selectedStormPlan ? stormPlans.find(p => p.id === selectedStormPlan && !p.deleted) : null;
+    exportOpsPNG({
+      kicker: 'PSD ALLIANCE OPS · DESERT STORM',
+      title: selPlan ? selPlan.title : 'Live draft · ' + isoDate(new Date()),
+      text: src.textContent,
+      skip: 'DESERT STORM',
+      accent: '#f59e0b',
+      filename: 'psd-storm-plan-'
+    });
+  }
+
+  function exportReportPNG() {
+    const src = document.getElementById('weeklyReportText');
+    if (!src || !src.textContent.trim()) return;
+    const selRep = selectedReport ? weeklyReports.find(r => r.id === selectedReport && !r.deleted) : null;
+    exportOpsPNG({
+      kicker: 'PSD ALLIANCE OPS · WEEKLY REPORT',
+      title: selRep ? selRep.title : 'Live report · ' + isoDate(new Date()),
+      text: src.textContent,
+      skip: 'PSD WEEKLY ALLIANCE REPORT',
+      accent: '#00e87a',
+      filename: 'psd-weekly-report-'
     });
   }
 
@@ -2010,26 +2100,47 @@
       opsMemberTable('Top battle candidates', topFive)
     ].join('');
 
+    const selPlan = selectedStormPlan ? stormPlans.find(p => p.id === selectedStormPlan && !p.deleted) : null;
+    const planRsvp = selPlan ? Object.values(selPlan.rsvp || {}) : [];
+    const rolesSet = selPlan ? Object.values(selPlan.roles || {}).filter(Boolean).length : 0;
+
     const stormSummary = document.getElementById('stormSummary');
-    if (stormSummary) stormSummary.innerHTML = [
+    if (stormSummary) stormSummary.innerHTML = (selPlan ? [
+      opsMetric('Plan', selPlan.title),
+      opsMetric('RSVP yes', planRsvp.filter(v => v === 'Yes').length),
+      opsMetric('Maybe / No', planRsvp.filter(v => v === 'Maybe').length + ' / ' + planRsvp.filter(v => v === 'No').length),
+      opsMetric('Roles set', rolesSet)
+    ] : [
       opsMetric('Suggested starters', Math.min(20, byRank.length)),
       opsMetric('Sub bench', storm.subs.length),
       opsMetric('Saved drafts', activeStormPlans().length),
       opsMetric('Team split', storm.teams[0].members.length + ' / ' + storm.teams[1].members.length)
-    ].join('');
+    ]).join('');
 
     const buildingPlan = ['Hospital', 'Research Center', 'Information Center', 'Arsenal', 'Mercenary Factory', 'Nuclear Silo', 'Oil Well', 'Flex / crate runner'];
     const stormPlanner = document.getElementById('stormPlanner');
-    if (stormPlanner) stormPlanner.innerHTML = '<div class="ops-split">' +
-      storm.teams.map(team => opsMemberTable(team.name + ' starters', team.members.slice(0, 10))).join('') +
-      '</div>' +
-      '<div class="feature-grid" style="margin-top:10px;">' +
-      opsFeature('Building assignment scaffold', 'Assign rally leads and fillers by phase instead of improvising in chat.', buildingPlan) +
-      opsFeature('Substitution bench', 'Keep six ready names visible for late swaps.', storm.subs.length ? storm.subs.map(memberPowerLine) : ['No substitutes available yet']) +
-      '</div>';
+    if (stormPlanner) {
+      if (selPlan) {
+        stormPlanner.innerHTML = '<div class="ops-split">' +
+          stormBoardTable('Team A starters', (selPlan.starters || [])[0] || [], selPlan) +
+          stormBoardTable('Team B starters', (selPlan.starters || [])[1] || [], selPlan) +
+          '</div>' +
+          '<div class="ops-split" style="margin-top:10px;">' +
+          stormBoardTable('Substitutes', selPlan.substitutes || [], selPlan) +
+          '<div class="feature-card"><h3>Plan tools</h3><p>Tap a role or RSVP chip to cycle it (unlock Edit first). Sync rebuilds the copyable text from teams, roles, and RSVP — it overwrites manual text edits.</p><button id="stormSyncText" class="ops-copy">&#8635; Sync text from board</button></div>' +
+          '</div>';
+      } else {
+        stormPlanner.innerHTML = '<div class="ops-split">' +
+          storm.teams.map(team => opsMemberTable(team.name + ' starters', team.members.slice(0, 10))).join('') +
+          '</div>' +
+          '<div class="feature-grid" style="margin-top:10px;">' +
+          opsFeature('Building assignment scaffold', 'Assign rally leads and fillers by phase instead of improvising in chat.', buildingPlan) +
+          opsFeature('Substitution bench', 'Keep six ready names visible for late swaps.', storm.subs.length ? storm.subs.map(memberPowerLine) : ['No substitutes available yet']) +
+          '</div>';
+      }
+    }
 
     const stormText = buildStormText(storm);
-    const selPlan = selectedStormPlan ? stormPlans.find(p => p.id === selectedStormPlan && !p.deleted) : null;
     const stormPlanTextEl = document.getElementById('stormPlanText');
     if (stormPlanTextEl) {
       stormPlanTextEl.textContent = selPlan ? selPlan.text : stormText;
@@ -2788,6 +2899,7 @@
   document.getElementById('copyWeeklyReport').addEventListener('click', () => copyOpsText('weeklyReportText', 'Weekly report'));
   document.getElementById('exportOpsCsv').addEventListener('click', exportOpsCSV);
   document.getElementById('exportStormPng').addEventListener('click', exportStormPNG);
+  document.getElementById('exportReportPng').addEventListener('click', exportReportPNG);
 
   document.getElementById('importBtn').addEventListener('click', () => {
     const p = document.getElementById('importPanel');
