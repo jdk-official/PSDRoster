@@ -448,6 +448,7 @@
         <select id="ocrType">
           <option value="thp">Total Hero Power (keeps [UP7] only)</option>
           <option value="kills">Kills</option>
+          <option value="vs">VS points (into Activity Ledger week)</option>
         </select>
       </label>
       <input type="file" id="ocrFile" accept="image/*" multiple>
@@ -553,7 +554,10 @@
           <h2>Desert Storm Plan Creator</h2>
           <p>Auto-draft balanced starters, substitutes, rally roles, and building assignments from the current roster. Save dated drafts and tweak the text before posting to alliance chat.</p>
         </div>
-        <button id="copyStormPlan" class="ops-copy">Copy Plan</button>
+        <div class="ops-actions">
+          <button id="exportStormPng" class="ops-copy">PNG</button>
+          <button id="copyStormPlan" class="ops-copy">Copy Plan</button>
+        </div>
       </div>
       <div id="stormSummary" class="ops-grid"></div>
       <div id="stormPlanner"></div>
@@ -576,6 +580,7 @@
         </div>
       </div>
       <div id="reportSummary" class="ops-grid"></div>
+      <div class="plan-bar" id="reportBar"></div>
       <pre id="weeklyReportText" class="ops-plan-text"></pre>
       <div id="reportFeatures" class="feature-grid"></div>
     </div>
@@ -796,6 +801,9 @@
   let selectedStormPlan = null; // stormPlans id displayed in the Storm tab (null = live draft)
   let squadSnapshots = [];      // [{ id, capturedAt, source, members: [{ name, thp, squad1..3, types, t11, kills }], updatedAt, deleted? }]
   let selectedSnapshot = null;  // snapshot id viewed in the Squad Power tab
+  let weeklyReports = [];       // [{ id, title, text, createdAt, updatedAt, deleted? }] — frozen report snapshots
+  let selectedReport = null;    // weeklyReports id displayed (null = live report)
+  let liveReportText = '';      // latest generated report text (freeze source)
   let lastRemoteSavedAt = 0;    // guards against JSONBin /latest returning a stale record
 
   // Rebuild the server/alliance filter dropdowns from the current roster values.
@@ -812,7 +820,7 @@
   }
 
   function cacheLocal() {
-    try { localStorage.setItem(LOCAL_KEY, JSON.stringify({ core: [...core], votedYes: [...votedYes], editHash, roster, activityWeeks, stormPlans, squadSnapshots })); } catch (e) {}
+    try { localStorage.setItem(LOCAL_KEY, JSON.stringify({ core: [...core], votedYes: [...votedYes], editHash, roster, activityWeeks, stormPlans, squadSnapshots, weeklyReports })); } catch (e) {}
   }
 
   async function loadState() {
@@ -828,6 +836,7 @@
         if (Array.isArray(o.activityWeeks)) activityWeeks = o.activityWeeks;
         if (Array.isArray(o.stormPlans)) stormPlans = o.stormPlans;
         if (Array.isArray(o.squadSnapshots)) squadSnapshots = o.squadSnapshots;
+        if (Array.isArray(o.weeklyReports)) weeklyReports = o.weeklyReports;
       }
     } catch (e) {}
 
@@ -847,6 +856,7 @@
       if (Array.isArray(rec.activityWeeks)) activityWeeks = rec.activityWeeks;
       if (Array.isArray(rec.stormPlans)) stormPlans = rec.stormPlans;
       if (Array.isArray(rec.squadSnapshots)) squadSnapshots = rec.squadSnapshots;
+      if (Array.isArray(rec.weeklyReports)) weeklyReports = rec.weeklyReports;
       lastRemoteSavedAt = rec.savedAt || 0;
       syncedCore = new Set(core);   // baseline: what the remote has right now
       syncedVoted = new Set(votedYes);
@@ -900,7 +910,8 @@
       roster: mergedRoster,
       activityWeeks: mergeActivityWeeks(remote.activityWeeks),
       stormPlans: mergeStormPlans(remote.stormPlans),
-      squadSnapshots: mergeSquadSnapshots(remote.squadSnapshots)
+      squadSnapshots: mergeSquadSnapshots(remote.squadSnapshots),
+      weeklyReports: mergeWeeklyReports(remote.weeklyReports)
     };
   }
 
@@ -944,6 +955,9 @@
   function mergeSquadSnapshots(remoteSnaps) {
     return mergeByIdLWW(squadSnapshots, remoteSnaps).sort((a, b) => (b.capturedAt || 0) - (a.capturedAt || 0));
   }
+  function mergeWeeklyReports(remoteReports) {
+    return mergeByIdLWW(weeklyReports, remoteReports).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  }
 
   async function saveState(silent) {
     cacheLocal();
@@ -977,12 +991,13 @@
       const res = await fetch(JSONBIN.base + '/' + JSONBIN.binId, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'X-Access-Key': JSONBIN.accessKey },
-        body: JSON.stringify({ core: [...merged.core], votedYes: [...merged.votedYes], editHash: merged.editHash, roster: merged.roster, activityWeeks: merged.activityWeeks, stormPlans: merged.stormPlans, squadSnapshots: merged.squadSnapshots, savedAt })
+        body: JSON.stringify({ core: [...merged.core], votedYes: [...merged.votedYes], editHash: merged.editHash, roster: merged.roster, activityWeeks: merged.activityWeeks, stormPlans: merged.stormPlans, squadSnapshots: merged.squadSnapshots, weeklyReports: merged.weeklyReports, savedAt })
       });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       // Adopt the merged result so this tab now reflects others' concurrent changes.
       core = merged.core; votedYes = merged.votedYes; editHash = merged.editHash; roster = merged.roster;
       activityWeeks = merged.activityWeeks; stormPlans = merged.stormPlans; squadSnapshots = merged.squadSnapshots;
+      weeklyReports = merged.weeklyReports;
       lastRemoteSavedAt = savedAt;
       syncedCore = new Set(core); syncedVoted = new Set(votedYes);
       cacheLocal();
@@ -1799,6 +1814,124 @@
     statusEl.textContent = 'Exported ops report for ' + sorted.length + ' commanders.';
   }
 
+  // Render the displayed Storm plan to a shareable PNG (for Discord/WhatsApp).
+  // Styled like the ops panels: dark card, mono text, amber header band.
+  function exportStormPNG() {
+    const src = document.getElementById('stormPlanText');
+    if (!src || !src.textContent.trim()) return;
+    const selPlan = selectedStormPlan ? stormPlans.find(p => p.id === selectedStormPlan && !p.deleted) : null;
+    const title = selPlan ? selPlan.title : 'Live draft · ' + isoDate(new Date());
+    const lines = src.textContent.split('\n').filter(l => l !== 'DESERT STORM DRAFT PLAN');
+    // Wrap long lines (team lists) at ~72 chars, breaking on ', ' where possible.
+    const wrapped = [];
+    lines.forEach(l => {
+      while (l.length > 72) {
+        let cut = l.lastIndexOf(', ', 72);
+        if (cut < 24) cut = 72;
+        wrapped.push(l.slice(0, cut + 1));
+        l = '    ' + l.slice(cut + 1).trim();
+      }
+      wrapped.push(l);
+    });
+    const scale = 2, pad = 26, lh = 24, headH = 64;
+    const w = 680, h = headH + pad + wrapped.length * lh + pad;
+    const c = document.createElement('canvas');
+    c.width = w * scale; c.height = h * scale;
+    const ctx = c.getContext('2d');
+    ctx.scale(scale, scale);
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = 'rgba(245,158,11,0.10)';
+    ctx.fillRect(0, 0, w, headH);
+    ctx.fillStyle = '#f59e0b';
+    ctx.font = '700 11px "JetBrains Mono", monospace';
+    ctx.fillText('PSD ALLIANCE OPS · DESERT STORM', pad, 26);
+    ctx.fillStyle = '#eaecf0';
+    ctx.font = '700 19px Outfit, sans-serif';
+    ctx.fillText(title, pad, 50);
+    wrapped.forEach((l, i) => {
+      const y = headH + pad + i * lh;
+      const m = l.match(/^([A-Za-z ]{2,12}):\s(.*)$/);
+      ctx.font = '500 13px "JetBrains Mono", monospace';
+      if (m) {
+        ctx.fillStyle = '#00e87a';
+        ctx.fillText(m[1] + ':', pad, y);
+        ctx.fillStyle = '#eaecf0';
+        ctx.fillText(m[2], pad + ctx.measureText(m[1] + ': ').width, y);
+      } else {
+        ctx.fillStyle = '#8b95a1';
+        ctx.fillText(l, pad, y);
+      }
+    });
+    c.toBlob(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'psd-storm-plan-' + new Date().toISOString().slice(0, 10) + '.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      statusEl.textContent = 'Storm plan exported as ' + a.download + ' — share it in alliance chat.';
+    });
+  }
+
+  // ---- Frozen weekly reports (weeklyReports) --------------------------------
+  // A frozen report is an immutable snapshot of the generated text at reset
+  // time, so leadership can compare week over week. View/copy/delete only.
+  function activeReports() { return weeklyReports.filter(r => !r.deleted); }
+
+  function renderReportBar() {
+    const bar = document.getElementById('reportBar');
+    if (!bar) return;
+    const reports = activeReports();
+    if (selectedReport && !reports.some(r => r.id === selectedReport)) selectedReport = null;
+    bar.innerHTML =
+      '<button class="plan-pill' + (selectedReport ? '' : ' active') + '" data-report="">&#9889; Live report</button>' +
+      reports.map(r => '<button class="plan-pill' + (r.id === selectedReport ? ' active' : '') + '" data-report="' + escAttr(r.id) + '">' + escAttr(r.title) + '<span class="x" data-del="' + escAttr(r.id) + '">&#10005;</span></button>').join('') +
+      '<button class="plan-pill" id="reportFreeze">&#128204; Freeze report</button>';
+  }
+
+  function wireReports() {
+    const bar = document.getElementById('reportBar');
+    if (!bar) return;
+    bar.addEventListener('click', e => {
+      const del = e.target.closest('[data-del]');
+      if (del) {
+        if (!requireEdit()) return;
+        if (!del.classList.contains('confirm')) {
+          del.classList.add('confirm');
+          del.textContent = 'sure?';
+          setTimeout(() => { del.classList.remove('confirm'); del.innerHTML = '&#10005;'; }, 2500);
+          return;
+        }
+        const r = weeklyReports.find(x => x.id === del.getAttribute('data-del'));
+        if (r) { r.deleted = true; r.updatedAt = Date.now(); }
+        if (r && selectedReport === r.id) selectedReport = null;
+        renderOpsPlanner();
+        scheduleOpsSave();
+        return;
+      }
+      if (e.target.closest('#reportFreeze')) {
+        if (!requireEdit()) return;
+        const now = Date.now();
+        const rep = {
+          id: 'wr-' + now.toString(36) + Math.random().toString(36).slice(2, 6),
+          title: 'Report ' + isoDate(new Date()),
+          text: liveReportText,
+          createdAt: now,
+          updatedAt: now
+        };
+        weeklyReports.unshift(rep);
+        selectedReport = rep.id;
+        renderOpsPlanner();
+        scheduleOpsSave();
+        return;
+      }
+      const pill = e.target.closest('[data-report]');
+      if (pill) { selectedReport = pill.getAttribute('data-report') || null; renderOpsPlanner(); }
+    });
+  }
+
   function renderOpsPlanner() {
     const byRank = rankedOpsMembers();
     const coreMembers = roster.filter(m => core.has(m.name));
@@ -1843,7 +1976,7 @@
         week ? (needVs.length ? needVs.slice(0, 8).map(m => m.name).concat(needVs.length > 8 ? ['+' + (needVs.length - 8) + ' more'] : []) : ['Every commander has a VS score this week'])
              : (missingActivity.length ? missingActivity.map(m => m.name + ' needs VS/Buster info') : ['All current activity fields are filled'])),
       opsFeature('Reliability legend', 'Tap the Reliability cell to cycle a commander through the planning signals.', ['Reliable — plan around them', 'Available — usually fine', 'Needs nudge — message before events', 'Away — skip this week', 'No-show — risk for starters']),
-      opsFeature('Import routes', 'Extend the OCR review pattern already used by THP/kills.', ['VS screenshot import', 'Donation ranking import', 'Event attendance import', 'Review before apply'])
+      opsFeature('Import routes', 'The roster Import panel now feeds this ledger.', ['VS screenshot import — live (Import → “VS points”)', 'Rows land in the current week after review', 'Names not on the roster are skipped', 'Donation / attendance imports — next'])
     ].join('');
 
     const squadSummary = document.getElementById('squadSummary');
@@ -1936,8 +2069,11 @@
       'Needs activity info: ' + (missingActivity.map(m => m.name).join(', ') || 'none'),
       'Needs squad update: ' + (missingSquads.map(m => m.name).join(', ') || 'none')
     ]).join('\n');
+    liveReportText = reportText;
+    const selRep = selectedReport ? weeklyReports.find(r => r.id === selectedReport && !r.deleted) : null;
     const weeklyReportText = document.getElementById('weeklyReportText');
-    if (weeklyReportText) weeklyReportText.textContent = reportText;
+    if (weeklyReportText) weeklyReportText.textContent = selRep ? selRep.text : reportText;
+    renderReportBar();
 
     const reportFeatures = document.getElementById('reportFeatures');
     if (reportFeatures) reportFeatures.innerHTML = [
@@ -1947,10 +2083,10 @@
 
     const scaffoldFeature = document.getElementById('scaffoldFeature');
     if (scaffoldFeature) scaffoldFeature.innerHTML = [
-      opsFeature('Live modules', 'The Activity Ledger and Storm drafts now write to the shared store; the roster stays the working default.', ['Roster — live', 'Activity Ledger — editable weekly grid, shared', 'Storm plans — saved, editable drafts, shared', 'Squad snapshots & reports — generated only (next)']),
-      opsFeature('Data model', 'New top-level arrays live beside roster without changing existing member units.', ['activityWeeks — live, merged per entry', 'stormPlans — live, merged per plan (tombstone deletes)', 'squadSnapshots — next', 'weeklyReports — next']),
+      opsFeature('Live modules', 'Every planning module now writes to the shared store; the roster stays the working default.', ['Roster — live', 'Activity Ledger — editable weekly grid + VS OCR import', 'Storm plans — saved drafts with PNG export', 'Squad snapshots — growth deltas', 'Weekly reports — freezable, CSV export']),
+      opsFeature('Data model', 'All four planning arrays live beside roster without changing existing member units.', ['activityWeeks — merged per entry', 'stormPlans — merged per plan (tombstone deletes)', 'squadSnapshots — merged per snapshot', 'weeklyReports — merged per frozen report']),
       opsFeature('Safe automation boundary', 'Keep the tool officer-driven and account-safe.', ['Screenshot OCR imports', 'Review-before-save', 'Copy/export plans', 'No in-game auto-clicking or bots']),
-      opsFeature('Next build slice', 'Best next implementation after this one.', ['OCR import for VS / donation screenshots', 'Squad snapshot capture with growth deltas', 'RSVP + role assignment on saved Storm plans', 'CSV/image export for weekly reports'])
+      opsFeature('Next build slice', 'Best next implementation after this one.', ['Donation / attendance OCR imports', 'RSVP + role assignment on saved Storm plans', 'Squad snapshot side-by-side compare', 'PNG export for weekly reports'])
     ].join('');
 
     renderLedger();
@@ -2462,12 +2598,14 @@
     return [...seen.values()];
   }
 
-  function updateRowStatus(tr) {
+  function updateRowStatus(tr, type) {
     const name = tr.querySelector('.rv-name').value.trim();
     const st = tr.querySelector('.rv-status');
     if (!name) { st.textContent = '—'; st.className = 'rv-status'; return; }
     const m = roster.find(x => norm(x.name) === norm(name));
     if (m) { st.textContent = 'update'; st.className = 'rv-status ok'; }
+    // VS import never adds roster members — unmatched rows are skipped on apply.
+    else if (type === 'vs') { st.textContent = 'not on roster'; st.className = 'rv-status new'; }
     else { st.textContent = 'NEW'; st.className = 'rv-status new'; }
   }
 
@@ -2477,7 +2615,7 @@
       review.innerHTML = '<p class="muted">No rows detected. Try a larger / clearer screenshot, or check the screenshot type.</p>';
       return;
     }
-    const valHead = type === 'thp' ? 'Power' : 'Kills (raw)';
+    const valHead = type === 'thp' ? 'Power' : type === 'vs' ? 'VS points' : 'Kills (raw)';
     let html = '<table class="review"><thead><tr><th>✓</th>' +
       (type === 'thp' ? '<th>Tag</th>' : '') +
       '<th>Name</th><th>' + valHead + '</th><th>Status</th></tr></thead><tbody>';
@@ -2495,8 +2633,8 @@
     review.innerHTML = html;
 
     review.querySelectorAll('tr[data-i]').forEach(tr => {
-      updateRowStatus(tr);
-      tr.querySelector('.rv-name').addEventListener('input', () => updateRowStatus(tr));
+      updateRowStatus(tr, type);
+      tr.querySelector('.rv-name').addEventListener('input', () => updateRowStatus(tr, type));
     });
     document.getElementById('ocrApply').onclick = () => applyReview(type);
     document.getElementById('ocrCancelReview').onclick = () => { review.innerHTML = ''; };
@@ -2505,6 +2643,33 @@
   function applyReview(type) {
     if (!requireEdit()) return;
     const trs = [...document.querySelectorAll('#ocrReview tr[data-i]')];
+    // VS points land in the current Activity Ledger week, not on roster members.
+    if (type === 'vs') {
+      const ws = currentWeekStart();
+      let week = activityWeeks.find(w => w.weekStart === ws);
+      if (!week) { week = { weekStart: ws, members: [] }; activityWeeks.unshift(week); }
+      selectedWeek = ws;
+      let logged = 0, skipped = 0;
+      for (const tr of trs) {
+        if (!tr.querySelector('.rv-inc').checked) continue;
+        const name = tr.querySelector('.rv-name').value.trim();
+        const valStr = tr.querySelector('.rv-val').value.replace(/[^\d]/g, '');
+        if (!name || !valStr) continue;
+        const m = roster.find(x => norm(x.name) === norm(name));
+        if (!m) { skipped++; continue; }
+        const entry = ledgerEntry(week, m.name, true);
+        entry.vs = valStr;
+        entry.updated = Date.now();
+        logged++;
+      }
+      document.getElementById('ocrReview').innerHTML = '';
+      renderOpsPlanner();
+      saveState();
+      statusEl.textContent = 'Imported VS: ' + logged + ' logged into week ' + ws + (skipped ? '; ' + skipped + ' not on roster (skipped).' : '.');
+      const tab = document.querySelector('.ops-tab[data-view="activity"]');
+      if (tab) tab.click();
+      return;
+    }
     let updated = 0, added = 0;
     for (const tr of trs) {
       if (!tr.querySelector('.rv-inc').checked) continue;
@@ -2618,9 +2783,11 @@
   wireLedger();
   wireStormPlans();
   wireSnapshots();
+  wireReports();
   document.getElementById('copyStormPlan').addEventListener('click', () => copyOpsText('stormPlanText', 'Desert Storm plan'));
   document.getElementById('copyWeeklyReport').addEventListener('click', () => copyOpsText('weeklyReportText', 'Weekly report'));
   document.getElementById('exportOpsCsv').addEventListener('click', exportOpsCSV);
+  document.getElementById('exportStormPng').addEventListener('click', exportStormPNG);
 
   document.getElementById('importBtn').addEventListener('click', () => {
     const p = document.getElementById('importPanel');
