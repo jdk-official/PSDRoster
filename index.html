@@ -240,6 +240,27 @@
   .subm-mark.on { border-color: #3572c2; background: #3572c2; color: #fff; }
   .appr-mark.on { border-color: #268355; background: #268355; color: #fff; }
   .subm-mark:active, .appr-mark:active { transform: scale(0.85); }
+  /* Regrouped row cells: status cluster, assignment chips, combat bars, squads. */
+  td.statuscell { text-align: center; white-space: nowrap; }
+  thead th.statuscell, thead th.assign, thead th.squads { text-align: center; }
+  td.statuscell > span { margin: 0 4px; vertical-align: middle; display: inline-flex; }
+  td.statuscell .star, td.statuscell .vote-mark { display: inline; }
+  td.assign { text-align: center; }
+  .assign-chip { display: block; margin: 2px auto; cursor: pointer; }
+  body.readonly .assign-chip, body.readonly .sq-ico, body.readonly .t11-mini { cursor: default; }
+  .thp-bar { height: 4px; background: rgba(0,0,0,0.13); border-radius: 2px; margin-top: 3px; overflow: hidden; }
+  .thp-bar i { display: block; height: 100%; background: #3572c2; }
+  td.killscell .t11-mini { margin-top: 2px; }
+  .t11-mini { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 0.6rem; font-weight: 800; cursor: pointer; letter-spacing: 0.3px; }
+  .t11-mini.t11-Yes { background: #268355; color: #fff; }
+  .t11-mini.t11-No { background: #4a5a6e; color: #c7d2df; }
+  td.squads { min-width: 150px; }
+  .sqrow { display: flex; align-items: center; gap: 5px; padding: 1px 0; }
+  .sq-ico { width: 16px; text-align: center; cursor: pointer; font-size: 0.75rem; line-height: 1; }
+  .sqrow .sq-power { width: 34px; text-align: right; font-size: 0.72rem; }
+  .sq-bar { flex: 1; height: 5px; background: rgba(0,0,0,0.13); border-radius: 2.5px; overflow: hidden; }
+  .sq-bar i { display: block; height: 100%; }
+  .sqb-1 { background: #3572c2; } .sqb-2 { background: #268355; } .sqb-3 { background: #b94f46; }
   footer { margin-top: 16px; color: #8fa3b8; font-size: 0.75rem; text-align: center; }
 
   /* ---- Phone layout: shrink the roster table so it fits without the whole
@@ -366,19 +387,11 @@
       <tr>
         <th>#</th>
         <th data-sort="name" title="Tap to sort by name">Commander</th>
-        <th class="core" data-sort="core" title="Tap to sort core first">Core</th>
-        <th class="vote">Voted Yes</th>
-        <th class="subm" title="Transfer application submitted">📨</th>
-        <th class="appr" title="Transfer approved">🤝</th>
-        <th class="talliance">Target Alliance</th>
+        <th class="statuscell" data-sort="core" title="★ core · ✔ voted · ✓ submitted · ✓ approved — tap to sort core first">Status</th>
+        <th class="assign" data-sort="seat" title="Target alliance + seat colour — tap to sort by seat">Assignment</th>
         <th class="num sorted" data-sort="thp" title="Tap to sort by THP">THP</th>
         <th class="num" data-sort="kills" title="Tap to sort by kills">Kills</th>
-        <th class="num" data-sort="squad1" title="Tap to sort by Squad 1">Squad 1</th>
-        <th class="sqtype">Squad Type</th>
-        <th class="seatcolour" data-sort="seat" title="Tap to sort by seat estimate">Seat Colour</th>
-        <th class="t11">T11</th>
-        <th class="num season">Season Rank</th>
-        <th class="num season" data-sort="season" title="Tap to sort by season score">Season Score</th>
+        <th class="squads" data-sort="squad1" title="Squad power S1 / S2 / S3 — tap to sort by Squad 1">Squads</th>
       </tr>
     </thead>
     <tbody id="tbody"></tbody>
@@ -747,11 +760,9 @@
     await saveState();
   }
 
-  // Toggle a per-member boolean flag (submitted / approved) via its cell mark.
-  async function toggleMemberFlag(cell, markSel, key) {
+  // Toggle a per-member boolean flag (submitted / approved) via its mark.
+  async function toggleMemberFlag(s, key) {
     if (!requireEdit()) return;
-    const s = cell.querySelector(markSel);
-    if (!s) return;
     const m = roster.find(x => x.name === decode(s.getAttribute('data-name')));
     if (!m) return;
     if (m[key]) delete m[key]; else m[key] = true;
@@ -1168,6 +1179,10 @@
     const svrStyle = v => 'background:' + SERVER_COLORS[Math.max(0, distinctServers.indexOf(v)) % SERVER_COLORS.length] + ';color:#f0f4f8;';
     const allyStyle = v => 'background:' + ALLIANCE_COLORS[Math.max(0, distinctAlliances.indexOf(v)) % ALLIANCE_COLORS.length] + ';color:#f0f4f8;';
 
+    // Bar scales for the THP and squad mini-bars (relative to roster max).
+    const maxThp = Math.max(1, ...roster.map(x => x.thp || 0));
+    const maxSq = Math.max(1, ...roster.flatMap(x => [x.squad1 || 0, x.squad2 || 0, x.squad3 || 0]));
+
     tbody.innerHTML = '';
     visible.forEach((m) => {
       const rank = sorted.indexOf(m); // 0-based rank in the full sort
@@ -1180,24 +1195,40 @@
       tr.className = classes.join(' ');
 
       const safeName = m.name.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-      const thpCell = '<td class="num editable thp' + (m.thp == null ? ' tbc' : '') + '" data-name="' + safeName + '" data-field="thp" title="Tap to edit THP">' + (m.thp == null ? 'TBC' : fmtMil(m.thp / 1e6)) + '</td>';
-      const squadCell = '<td class="num editable squad1' + (m.squad1 == null ? ' tbc' : '') + '" data-name="' + safeName + '" data-field="squad1" title="Tap to edit Squad 1">' + (m.squad1 == null ? 'TBC' : fmtMil(m.squad1 / 1e6)) + '</td>';
-      const typeCell = '<td class="sqtype editable-type" data-name="' + safeName + '" title="Tap to cycle squad type (Tank / Air / Missile)">' +
-        (m.squadType ? '<span class="sqtype-badge sqtype-' + m.squadType + '">' + SQUAD_TYPE_ICON[m.squadType] + ' ' + m.squadType + '</span>' : '&mdash;') + '</td>';
       const t11v = (m.t11 === 'Yes' || m.t11 === true) ? 'Yes' : 'No';
-      const t11Cell = '<td class="t11 editable-t11" data-name="' + safeName + '" title="Tap to toggle T11 (Yes / No)">' +
-        '<span class="t11-badge t11-' + t11v + '">' + t11v + '</span></td>';
-      const seatColourCell = '<td class="seatcolour editable-seatcolour" data-name="' + safeName + '" title="Tap to cycle seat colour (White / Blue / Purple / Gold)">' +
-        (m.seatColour ? '<span class="seat-badge seat-' + m.seatColour + '">' + m.seatColour + '</span>' : '&mdash;') + '</td>';
-      const tallyCell = '<td class="talliance editable-tally" data-name="' + safeName + '" title="Tap to cycle target alliance (PSD / SPnX)">' +
-        (m.targetAlliance ? '<span class="tally-badge tally-' + m.targetAlliance + '">' + m.targetAlliance + '</span>' : '&mdash;') + '</td>';
-      const rankCell = '<td class="num editable season" data-name="' + safeName + '" data-field="seasonRank" title="Tap to edit JKs Season Rank">' + (m.seasonRank == null ? '&mdash;' : m.seasonRank) + '</td>';
-      const scoreTip = (m.seasonScore != null && m.seasonCG != null)
-        ? 'CG ' + m.seasonCG + ' · Cap ' + m.seasonCap + ' · Kills ' + m.seasonKills + ' — tap to edit'
-        : 'Tap to edit JKs Season Score';
-      const scoreCell = '<td class="num editable season" data-name="' + safeName + '" data-field="seasonScore" title="' + escAttr(scoreTip) + '">' + (m.seasonScore == null ? '&mdash;' : m.seasonScore) + '</td>';
       const on = core.has(m.name) ? 'on' : '';
       const votedOn = votedYes.has(m.name) ? 'on' : '';
+
+      // Status cluster: core / voted / submitted / approved in one cell.
+      const statusCell = '<td class="statuscell">' +
+        '<span class="star ' + on + '" data-name="' + safeName + '" title="Core">★</span>' +
+        '<span class="vote-mark ' + votedOn + '" data-name="' + safeName + '" title="Voted yes">✔</span>' +
+        '<span class="subm-mark ' + (m.submitted ? 'on' : '') + '" data-name="' + safeName + '" title="Transfer application submitted">✓</span>' +
+        '<span class="appr-mark ' + (m.approved ? 'on' : '') + '" data-name="' + safeName + '" title="Transfer approved">✓</span></td>';
+
+      // Assignment: target alliance over seat colour, both tap-to-cycle.
+      const assignCell = '<td class="assign">' +
+        '<span class="assign-chip editable-tally" data-name="' + safeName + '" title="Target alliance — tap to cycle">' +
+          (m.targetAlliance ? '<span class="tally-badge tally-' + m.targetAlliance + '">' + m.targetAlliance + '</span>' : '<span class="answer-blank">&mdash;</span>') + '</span>' +
+        '<span class="assign-chip editable-seatcolour" data-name="' + safeName + '" title="Seat colour — tap to cycle">' +
+          (m.seatColour ? '<span class="seat-badge seat-' + m.seatColour + '">' + m.seatColour + '</span>' : '<span class="answer-blank">&mdash;</span>') + '</span></td>';
+
+      // Combat: THP with a proportional bar; kills with the T11 chip.
+      const thpCell = '<td class="num editable thp' + (m.thp == null ? ' tbc' : '') + '" data-name="' + safeName + '" data-field="thp" title="Tap to edit THP">' +
+        (m.thp == null ? 'TBC' : fmtMil(m.thp / 1e6) + '<div class="thp-bar"><i style="width:' + (m.thp / maxThp * 100).toFixed(1) + '%"></i></div>') + '</td>';
+      const killsCell = '<td class="num killscell">' + fmtMil(Number(m.kills) || 0) +
+        '<div><span class="t11-mini t11-' + t11v + '" data-name="' + safeName + '" title="T11 troops: ' + t11v + ' — tap to toggle">T11 ' + (t11v === 'Yes' ? '✓' : '✗') + '</span></div></td>';
+
+      // Squads: S1/S2/S3 rows — type icon (tap to cycle), power (tap to edit), bar.
+      const sqRow = n => {
+        const pv = m['squad' + n];
+        const tv = n === 1 ? m.squadType : m['squad' + n + 'Type'];
+        return '<div class="sqrow">' +
+          '<span class="sq-ico" data-name="' + safeName + '"' + (n === 1 ? '' : ' data-key="squad' + n + 'Type"') + ' title="S' + n + (tv ? ' ' + tv : '') + ' — tap to cycle type">' + (tv ? SQUAD_TYPE_ICON[tv] : '·') + '</span>' +
+          '<span class="sq-power sqv' + (pv == null ? ' tbc' : '') + '" data-name="' + safeName + '" data-field="squad' + n + '" title="Squad ' + n + ' power — tap to edit">' + (pv == null ? '—' : (pv / 1e6).toFixed(1)) + '</span>' +
+          '<div class="sq-bar"><i class="sqb-' + n + '" style="width:' + (pv ? (pv / maxSq * 100).toFixed(1) : 0) + '%"></i></div></div>';
+      };
+      const squadsCell = '<td class="squads">' + sqRow(1) + sqRow(2) + sqRow(3) + '</td>';
       // Squad 2/3 expander: always visible; editing inside the strip stays gated.
       const expOpen = expandAll || expandedSquads.has(m.name);
       const nameCell = '<td class="name" data-name="' + safeName + '">' +
@@ -1218,36 +1249,18 @@
       tr.innerHTML =
         '<td>' + (rank + 1) + '</td>' +
         nameCell +
-        '<td class="core"><span class="star ' + on + '" data-name="' + safeName + '">★</span></td>' +
-        '<td class="vote"><span class="vote-mark ' + votedOn + '" data-name="' + safeName + '">✔</span></td>' +
-        '<td class="subm"><span class="subm-mark ' + (m.submitted ? 'on' : '') + '" data-name="' + safeName + '" title="Transfer application submitted">✓</span></td>' +
-        '<td class="appr"><span class="appr-mark ' + (m.approved ? 'on' : '') + '" data-name="' + safeName + '" title="Transfer approved">✓</span></td>' +
-        tallyCell +
+        statusCell +
+        assignCell +
         thpCell +
-        '<td class="num">' + fmtMil(Number(m.kills) || 0) + '</td>' +
-        squadCell +
-        typeCell +
-        seatColourCell +
-        t11Cell +
-        rankCell +
-        scoreCell;
+        killsCell +
+        squadsCell;
       tbody.appendChild(tr);
 
-      // Expanded Squad 2/3 detail strip, directly under the member's row.
+      // Expanded detail strip: surveys, levels, seasons, T2/3 tracking flag.
       if (expOpen) {
-        const part = n => {
-          const pv = m['squad' + n];
-          const tv = m['squad' + n + 'Type'];
-          return '<span class="sq-part"><span class="sq-label">Squad ' + n + '</span>' +
-            '<span class="sq-power' + (pv == null ? ' tbc' : '') + '" data-name="' + safeName + '" data-field="squad' + n + '" title="Tap to edit Squad ' + n + ' power">' + (pv == null ? 'TBC' : fmtMil(pv / 1e6)) + '</span>' +
-            '<span class="sq-type" data-name="' + safeName + '" data-key="squad' + n + 'Type" title="Tap to cycle Squad ' + n + ' type">' +
-              (tv ? '<span class="sqtype-badge sqtype-' + tv + '">' + SQUAD_TYPE_ICON[tv] + ' ' + tv + '</span>' : '<span class="answer-blank">&mdash;</span>') +
-            '</span></span>';
-        };
         const trackBox = editMode
           ? '<label class="sq-track"><input type="checkbox" class="sq-track-box" data-name="' + safeName + '"' + (m.squadGroup ? ' checked' : '') + '> Track T2/T3</label>'
           : '';
-        // Survey answers + levels (moved out of the main table to keep it compact).
         const survey = SELECT_COLS.map(cfg =>
           '<span class="sq-part"><span class="sq-label">' + cfg.label + '</span>' + selectControlHtml(m, cfg, safeName) + '</span>').join('');
         const lvl = (label, field, val) =>
@@ -1255,60 +1268,48 @@
           '<span class="sq-power" data-name="' + safeName + '" data-field="' + field + '" title="Tap to edit ' + label + '">' + (val == null ? '&mdash;' : val) + '</span></span>';
         const dtr = document.createElement('tr');
         dtr.className = 'squad-detail';
-        dtr.innerHTML = '<td colspan="15"><div class="sq-detail-flex">' + part(2) + part(3) + survey +
-          lvl('HQ', 'hqLevel', m.hqLevel) + lvl('Prof.', 'profLevel', m.profLevel) + trackBox + '</div></td>';
+        dtr.innerHTML = '<td colspan="7"><div class="sq-detail-flex">' + survey +
+          lvl('HQ', 'hqLevel', m.hqLevel) + lvl('Prof.', 'profLevel', m.profLevel) +
+          lvl('Season Rank', 'seasonRank', m.seasonRank) + lvl('Season Score', 'seasonScore', m.seasonScore) +
+          trackBox + '</div></td>';
         tbody.appendChild(dtr);
       }
     });
 
     if (!visible.length) {
-      tbody.innerHTML = '<tr><td colspan="15" style="text-align:center;color:#7e90a6;font-style:italic;background:transparent;">No commanders match.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#7e90a6;font-style:italic;background:transparent;">No commanders match.</td></tr>';
     }
 
-    // The whole Core cell is the tap target (bigger than the ★ glyph for touch).
-    tbody.querySelectorAll('td.core').forEach(cell => {
-      cell.addEventListener('click', () => {
-        const s = cell.querySelector('.star');
-        if (!s) return;
-        toggleCore(decode(s.getAttribute('data-name')));
-      });
+    // Status cluster marks: core ★, voted ✔, submitted / approved checkboxes.
+    tbody.querySelectorAll('.star').forEach(s => {
+      s.addEventListener('click', () => toggleCore(decode(s.getAttribute('data-name'))));
+    });
+    tbody.querySelectorAll('.vote-mark').forEach(s => {
+      s.addEventListener('click', () => toggleVotedYes(decode(s.getAttribute('data-name'))));
+    });
+    tbody.querySelectorAll('.subm-mark').forEach(s => {
+      s.addEventListener('click', () => toggleMemberFlag(s, 'submitted'));
+    });
+    tbody.querySelectorAll('.appr-mark').forEach(s => {
+      s.addEventListener('click', () => toggleMemberFlag(s, 'approved'));
     });
 
-    // Voted Yes cell — same tap-to-toggle behaviour as Core.
-    tbody.querySelectorAll('td.vote').forEach(cell => {
-      cell.addEventListener('click', () => {
-        const s = cell.querySelector('.vote-mark');
-        if (!s) return;
-        toggleVotedYes(decode(s.getAttribute('data-name')));
-      });
+    // Assignment chips: target alliance / seat colour, tap to cycle (edit mode only).
+    tbody.querySelectorAll('.editable-tally').forEach(el => {
+      el.addEventListener('click', () => cycleTargetAlliance(el));
+    });
+    tbody.querySelectorAll('.editable-seatcolour').forEach(el => {
+      el.addEventListener('click', () => cycleSeatColour(el));
     });
 
-    // Submitted / Approved cells — per-member boolean flags.
-    tbody.querySelectorAll('td.subm').forEach(cell => {
-      cell.addEventListener('click', () => toggleMemberFlag(cell, '.subm-mark', 'submitted'));
-    });
-    tbody.querySelectorAll('td.appr').forEach(cell => {
-      cell.addEventListener('click', () => toggleMemberFlag(cell, '.appr-mark', 'approved'));
+    // Squad type icons: S1 cycles squadType, S2/S3 (data-key) cycle their own type.
+    tbody.querySelectorAll('.sq-ico').forEach(el => {
+      el.addEventListener('click', () => el.hasAttribute('data-key') ? cycleSquadNType(el) : cycleSquadType(el));
     });
 
-    // Squad Type cell — tap cycles null → Tank → Air → Missile (edit mode only).
-    tbody.querySelectorAll('td.sqtype').forEach(cell => {
-      cell.addEventListener('click', () => cycleSquadType(cell));
-    });
-
-    // Seat Colour cell — tap cycles null → Gray → Blue → Purple → Gold (edit mode only).
-    tbody.querySelectorAll('td.seatcolour').forEach(cell => {
-      cell.addEventListener('click', () => cycleSeatColour(cell));
-    });
-
-    // Target Alliance cell — tap cycles null → PSD → SPnX → null (edit mode only).
-    tbody.querySelectorAll('td.talliance').forEach(cell => {
-      cell.addEventListener('click', () => cycleTargetAlliance(cell));
-    });
-
-    // T11 cell — tap toggles No ⇄ Yes (edit mode only).
-    tbody.querySelectorAll('td.t11').forEach(cell => {
-      cell.addEventListener('click', () => toggleT11(cell));
+    // T11 mini chip — tap toggles No ⇄ Yes (edit mode only).
+    tbody.querySelectorAll('.t11-mini').forEach(el => {
+      el.addEventListener('click', () => toggleT11(el));
     });
 
     // Survey dropdowns (VS activity / Buster Day — inside the detail strips).
@@ -1327,9 +1328,6 @@
     });
     tbody.querySelectorAll('.sq-power').forEach(el => {
       el.addEventListener('click', () => editField(el, el.getAttribute('data-field')));
-    });
-    tbody.querySelectorAll('.sq-type').forEach(el => {
-      el.addEventListener('click', () => cycleSquadNType(el));
     });
     tbody.querySelectorAll('.sq-track-box').forEach(box => {
       box.addEventListener('change', () => toggleSquadGroup(box));
