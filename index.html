@@ -4,7 +4,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Swirrel's RSS Farm Roster</title>
+<title>PSD Alliance Ops Roster</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #1e2a3a;
@@ -18,6 +21,37 @@
     --text-dark: #1e2a3a;
     --tbc: #8a4646;
     --core: #f2c14e;
+    /* LWServers-derived tokens for the ops planning surfaces
+       (see docs/lwservers-style-reference.md) */
+    --lw-bg-1: #0d1117;
+    --lw-bg-3: #1a2230;
+    --lw-glass-bg: rgba(13,17,23,0.65);
+    --lw-glass-bg-3: rgba(255,255,255,0.04);
+    --lw-glass-border: rgba(255,255,255,0.08);
+    --lw-border-1: rgba(255,255,255,0.07);
+    --lw-border-2: rgba(255,255,255,0.12);
+    --lw-border-3: rgba(255,255,255,0.18);
+    --lw-accent: #00e87a;
+    --lw-accent-glow: rgba(0,232,122,0.14);
+    --lw-accent-border: rgba(0,232,122,0.25);
+    --lw-amber: #f59e0b;
+    --lw-amber-glow: rgba(245,158,11,0.12);
+    --lw-blue: #60a5fa;
+    --lw-blue-glow: rgba(96,165,250,0.12);
+    --lw-purple: #c084fc;
+    --lw-purple-glow: rgba(192,132,252,0.12);
+    --lw-red: #f87171;
+    --lw-red-glow: rgba(248,113,113,0.12);
+    --lw-red-border: rgba(248,113,113,0.25);
+    --lw-text-1: #eaecf0;
+    --lw-text-2: #8b95a1;
+    --lw-text-3: #4b5563;
+    --lw-font-ui: 'Outfit', system-ui, sans-serif;
+    --lw-font-data: 'JetBrains Mono', 'Fira Code', monospace;
+    --lw-shadow-md: 0 4px 16px rgba(0,0,0,0.35);
+    --lw-shadow-accent: 0 0 24px rgba(0,232,122,0.2);
+    --lw-ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --lw-t-base: 200ms;
   }
   * { box-sizing: border-box; }
   body {
@@ -239,6 +273,79 @@
   .sq-bar { flex: 1; height: 5px; background: rgba(0,0,0,0.13); border-radius: 2.5px; overflow: hidden; }
   .sq-bar i { display: block; height: 100%; }
   .sqb-1 { background: #3572c2; } .sqb-2 { background: #268355; } .sqb-3 { background: #b94f46; }
+  /* Alliance ops scaffold: planning tabs and feature panels.
+     Styled after the LWServers design system (docs/lwservers-style-reference.md):
+     Outfit for UI text, JetBrains Mono for data, dark glass panels, tinted chips. */
+  .ops-tabs { display: flex; gap: 6px; align-items: center; overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 0 12px; padding-bottom: 2px; }
+  .ops-tab { flex: 0 0 auto; font-family: var(--lw-font-ui); background: var(--lw-bg-3); color: var(--lw-text-1); border: 1px solid var(--lw-border-2); border-radius: 999px; padding: 8px 14px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: background var(--lw-t-base) var(--lw-ease), border-color var(--lw-t-base) var(--lw-ease), color var(--lw-t-base) var(--lw-ease); }
+  .ops-tab:hover { background: #232d40; border-color: var(--lw-border-3); }
+  .ops-tab.active { background: var(--lw-accent); border-color: var(--lw-accent); color: #04160c; font-weight: 700; }
+  .ops-view[hidden] { display: none; }
+  /* Per-view tone accents (LWServers tone classes) */
+  .ops-view { --lw-tone: var(--lw-accent); --lw-tone-glow: var(--lw-accent-glow); }
+  #view-activity { --lw-tone: var(--lw-blue); --lw-tone-glow: var(--lw-blue-glow); }
+  #view-squads { --lw-tone: var(--lw-purple); --lw-tone-glow: var(--lw-purple-glow); }
+  #view-storm { --lw-tone: var(--lw-amber); --lw-tone-glow: var(--lw-amber-glow); }
+  #view-scaffold { --lw-tone: var(--lw-text-2); --lw-tone-glow: rgba(255,255,255,0.05); }
+  .ops-shell { position: relative; overflow: hidden; background: var(--lw-glass-bg); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--lw-glass-border); border-radius: 20px; padding: 18px; margin-bottom: 12px; box-shadow: var(--lw-shadow-md); }
+  .ops-shell::before { content: ""; position: absolute; inset: 0 0 auto; height: 120px; pointer-events: none; background: radial-gradient(120% 100% at 50% -30%, var(--lw-tone-glow), transparent 65%); }
+  .ops-shell > * { position: relative; }
+  .ops-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .ops-eyebrow { font-family: var(--lw-font-data); font-size: 0.64rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: var(--lw-tone); margin-bottom: 5px; }
+  .ops-head h2 { margin: 0; font-family: var(--lw-font-ui); font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; color: var(--lw-text-1); text-shadow: 0 2px 18px rgba(0,0,0,0.45); }
+  .ops-head p { margin: 5px 0 0; font-family: var(--lw-font-ui); color: var(--lw-text-2); font-size: 0.8rem; line-height: 1.45; max-width: 720px; }
+  .ops-grid { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .ops-metric { background: var(--lw-glass-bg-3); border: 1px solid var(--lw-glass-border); border-radius: 16px; padding: 12px 14px; }
+  .ops-metric .v { font-family: var(--lw-font-data); color: var(--lw-text-1); font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; }
+  .ops-metric .k { font-family: var(--lw-font-data); color: var(--lw-text-2); font-size: 0.6rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 4px; }
+  .feature-grid { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 10px; }
+  .feature-card { background: var(--lw-bg-1); border: 1px solid var(--lw-border-1); color: var(--lw-text-1); border-radius: 14px; padding: 14px; }
+  .feature-card h3 { margin: 0 0 6px; font-family: var(--lw-font-ui); font-size: 0.92rem; font-weight: 600; color: var(--lw-text-1); }
+  .feature-card p { margin: 0 0 8px; font-family: var(--lw-font-ui); color: var(--lw-text-2); font-size: 0.78rem; line-height: 1.45; }
+  .feature-card ul { margin: 0; padding-left: 17px; font-family: var(--lw-font-ui); color: var(--lw-text-2); font-size: 0.76rem; line-height: 1.5; }
+  .feature-card li::marker { color: var(--lw-tone); }
+  .ops-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; overflow: hidden; border-radius: 10px; }
+  .ops-table th, .ops-table td { border-bottom: 1px solid var(--lw-border-1); padding: 7px 6px; text-align: left; }
+  .ops-table th { font-family: var(--lw-font-data); color: var(--lw-text-3); text-transform: uppercase; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em; }
+  .ops-table td { font-family: var(--lw-font-ui); color: var(--lw-text-1); }
+  .ops-table td.num { text-align: right; font-family: var(--lw-font-data); font-weight: 700; letter-spacing: -0.01em; }
+  .ops-table tr:last-child td { border-bottom: none; }
+  .ops-chip { display: inline-block; font-family: var(--lw-font-data); font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; border-radius: 999px; padding: 3px 7px; }
+  .ops-chip.on { color: var(--lw-accent); background: var(--lw-accent-glow); border: 1px solid var(--lw-accent-border); }
+  .ops-chip.off { color: var(--lw-text-3); background: var(--lw-glass-bg-3); border: 1px solid var(--lw-border-2); }
+  .ops-split { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 10px; }
+  .ops-copy { font-family: var(--lw-font-data); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.03em; color: var(--lw-accent); background: var(--lw-accent-glow); border: 1px solid var(--lw-accent-border); border-radius: 999px; padding: 9px 18px; cursor: pointer; transition: background var(--lw-t-base) var(--lw-ease), box-shadow var(--lw-t-base) var(--lw-ease); }
+  .ops-copy:hover { background: rgba(0,232,122,0.24); box-shadow: var(--lw-shadow-accent); }
+  .ops-plan-text { margin: 12px 0 0; white-space: pre-wrap; font-family: var(--lw-font-data); background: var(--lw-bg-1); border: 1px solid var(--lw-border-1); color: var(--lw-text-2); border-radius: 14px; padding: 14px; font-size: 0.76rem; line-height: 1.5; }
+  .scaffold-list { display: grid; grid-template-columns: repeat(3, minmax(160px, 1fr)); gap: 8px; margin-top: 10px; }
+  .scaffold-step { background: var(--lw-bg-1); border: 1px solid var(--lw-border-1); border-radius: 14px; padding: 12px; }
+  .scaffold-step b { display: block; font-family: var(--lw-font-ui); color: var(--lw-text-1); font-weight: 600; font-size: 0.82rem; margin-bottom: 4px; }
+  .scaffold-step span { font-family: var(--lw-font-ui); color: var(--lw-text-2); font-size: 0.74rem; line-height: 1.45; }
+  /* Activity Ledger editor */
+  .ledger-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 10px; }
+  .ledger-week { font-family: var(--lw-font-data); font-size: 0.76rem; font-weight: 600; background: var(--lw-bg-3); color: var(--lw-text-1); border: 1px solid var(--lw-border-2); border-radius: 999px; padding: 7px 12px; cursor: pointer; }
+  .ledger-hint { font-family: var(--lw-font-ui); color: var(--lw-text-3); font-size: 0.72rem; }
+  .ledger-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 12px; }
+  #ledgerTable { min-width: 780px; }
+  #ledgerTable td[data-key] { cursor: pointer; }
+  body.readonly #ledgerTable td[data-key] { cursor: default; }
+  #ledgerTable input { font-family: var(--lw-font-data); font-size: 0.74rem; background: var(--lw-bg-3); border: 1px solid var(--lw-accent-border); color: var(--lw-text-1); border-radius: 6px; padding: 3px 6px; width: 72px; }
+  #ledgerTable td.muted { color: var(--lw-text-3); }
+  .ops-chip.mid { color: var(--lw-blue); background: var(--lw-blue-glow); border: 1px solid rgba(96,165,250,0.25); }
+  .ops-chip.warn { color: var(--lw-amber); background: var(--lw-amber-glow); border: 1px solid rgba(245,158,11,0.25); }
+  .ops-chip.bad { color: var(--lw-red); background: var(--lw-red-glow); border: 1px solid var(--lw-red-border); }
+  /* Desert Storm saved plan drafts */
+  .plan-bar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 12px 0 0; }
+  .plan-pill { font-family: var(--lw-font-data); font-size: 0.72rem; font-weight: 700; color: var(--lw-text-2); background: var(--lw-glass-bg-3); border: 1px solid var(--lw-border-2); border-radius: 999px; padding: 6px 12px; cursor: pointer; display: flex; align-items: center; gap: 7px; transition: color var(--lw-t-base) var(--lw-ease), border-color var(--lw-t-base) var(--lw-ease); }
+  .plan-pill:hover { border-color: var(--lw-border-3); color: var(--lw-text-1); }
+  .plan-pill.active { color: var(--lw-amber); background: var(--lw-amber-glow); border-color: rgba(245,158,11,0.35); }
+  .plan-pill .x { color: var(--lw-text-3); }
+  .plan-pill .x:hover, .plan-pill .x.confirm { color: var(--lw-red); }
+  textarea.plan-edit { display: block; width: 100%; min-height: 190px; margin: 12px 0 0; font-family: var(--lw-font-data); font-size: 0.76rem; line-height: 1.5; background: var(--lw-bg-1); color: var(--lw-text-1); border: 1px solid var(--lw-accent-border); border-radius: 14px; padding: 14px; resize: vertical; }
+  .ops-plan-text.plan-editable { cursor: pointer; border-color: var(--lw-border-2); }
+  .ops-actions { display: flex; gap: 8px; align-items: center; }
+  .ops-copy.snap-del { color: var(--lw-red); background: var(--lw-red-glow); border-color: var(--lw-red-border); }
+  .ops-copy.snap-del:hover { background: rgba(248,113,113,0.2); box-shadow: none; }
   footer { margin-top: 16px; color: #8fa3b8; font-size: 0.75rem; text-align: center; }
 
   /* ---- Phone layout: shrink the roster table so it fits without the whole
@@ -268,6 +375,12 @@
     input.cell-edit { width: 56px; }
     input.note-edit { width: 120px; }
     .toolbar .toggle { padding: 7px 9px; font-size: 0.76rem; }
+    .ops-tabs { gap: 5px; }
+    .ops-tab { padding: 7px 12px; font-size: 0.74rem; }
+    .ops-shell { padding: 14px; border-radius: 16px; }
+    .ops-head h2 { font-size: 1.1rem; }
+    .ops-grid, .feature-grid, .ops-split, .scaffold-list { grid-template-columns: 1fr; }
+    .ops-table { min-width: 420px; }
     .actions button { padding: 6px 8px; font-size: 0.74rem; }
   }
 </style>
@@ -275,8 +388,8 @@
 <body>
   <div class="masthead">
     <div class="masthead-id">
-      <h1>&#128668; Swirrel's RSS Farm Roster</h1>
-      <div class="sub">Total Hero Power &amp; Kills &middot; tap a header to sort &middot; tap &#9733; to mark core</div>
+      <h1>PSD Alliance Ops Roster</h1>
+      <div class="sub">Alliance activity, squad power, Desert Storm planning, and weekly leadership reports</div>
     </div>
     <div class="actions">
       <button id="editBtn" title="Unlock editing with the password">&#128274; Edit</button>
@@ -305,7 +418,7 @@
     </div>
   </div>
 
-  <!-- Dashboard band: roster counts, transfer-pipeline funnel, PSD/SPnX balance. -->
+  <!-- Dashboard band: roster counts, transfer readiness, PSD/SPnX balance. -->
   <div class="dash">
     <div class="dash-card dash-counts">
       <div class="dash-label">Roster</div>
@@ -314,7 +427,7 @@
       <div class="count-row"><span class="count-k">Core</span><span class="count-v" id="coreCount">&mdash;</span></div>
     </div>
     <div class="dash-card dash-pipe">
-      <div class="dash-label">Transfer pipeline &middot; Core</div>
+      <div class="dash-label">Readiness pipeline &middot; Core</div>
       <div class="pipe-bar" id="pipeBar"></div>
       <div class="pipe-legend">
         <span><i class="dot dot-no"></i>not submitted</span>
@@ -347,6 +460,16 @@
 
   <div class="status" id="status">Loading shared data&hellip;</div>
 
+  <nav class="ops-tabs" aria-label="Alliance planning sections">
+    <button class="ops-tab active" data-view="roster">Roster</button>
+    <button class="ops-tab" data-view="activity">Activity Ledger</button>
+    <button class="ops-tab" data-view="squads">Squad Power</button>
+    <button class="ops-tab" data-view="storm">Desert Storm</button>
+    <button class="ops-tab" data-view="report">Weekly Report</button>
+    <button class="ops-tab" data-view="scaffold">Scaffold</button>
+  </nav>
+
+  <section class="ops-view active" id="view-roster">
   <div class="toolbar">
     <input type="search" id="search" class="search-box" placeholder="&#128269; Search commander&hellip;" autocomplete="off">
     <select id="targetFilter" title="Filter by target alliance">
@@ -379,8 +502,107 @@
     <tbody id="tbody"></tbody>
   </table>
   </div>
+  </section>
 
-  <footer>&#9733; Core marks are shared &mdash; everyone with this link sees and edits the same set. TBC = THP not yet captured.</footer>
+  <section class="ops-view" id="view-activity" hidden>
+    <div class="ops-shell">
+      <div class="ops-head">
+        <div>
+          <div class="ops-eyebrow">Alliance Ops &middot; Weekly Ledger</div>
+          <h2>Alliance Activity Ledger</h2>
+          <p>Weekly participation ledger &mdash; log VS, Desert Storm, Marshal, Zombie Siege, donations, help, and reliability per commander. Unlock Edit, then click any cell.</p>
+        </div>
+      </div>
+      <div id="activitySummary" class="ops-grid"></div>
+      <div class="ledger-bar">
+        <select id="ledgerWeek" class="ledger-week"></select>
+        <button id="ledgerNewWeek" class="ops-copy">+ New week</button>
+        <span class="ledger-hint">Cells save to the shared store as you edit</span>
+      </div>
+      <div class="ledger-wrap"><table class="ops-table" id="ledgerTable"></table></div>
+      <div id="activityFeatures" class="feature-grid"></div>
+    </div>
+  </section>
+
+  <section class="ops-view" id="view-squads" hidden>
+    <div class="ops-shell">
+      <div class="ops-head">
+        <div>
+          <div class="ops-eyebrow">Alliance Ops &middot; Power Record</div>
+          <h2>Alliance Squad Power Record</h2>
+          <p>Capture dated power snapshots, then watch growth deltas, T11 status, squad type balance, and missing stat work.</p>
+        </div>
+      </div>
+      <div id="squadSummary" class="ops-grid"></div>
+      <div class="ledger-bar">
+        <select id="snapSelect" class="ledger-week"></select>
+        <button id="snapCapture" class="ops-copy">&#128248; Capture snapshot</button>
+        <button id="snapDelete" class="ops-copy snap-del" title="Delete selected snapshot">&#128465;</button>
+        <span class="ledger-hint" id="snapHint"></span>
+      </div>
+      <div id="snapDelta"></div>
+      <div id="squadFeatures" class="feature-grid"></div>
+    </div>
+  </section>
+
+  <section class="ops-view" id="view-storm" hidden>
+    <div class="ops-shell">
+      <div class="ops-head">
+        <div>
+          <div class="ops-eyebrow">Alliance Ops &middot; War Room</div>
+          <h2>Desert Storm Plan Creator</h2>
+          <p>Auto-draft balanced starters, substitutes, rally roles, and building assignments from the current roster. Save dated drafts and tweak the text before posting to alliance chat.</p>
+        </div>
+        <button id="copyStormPlan" class="ops-copy">Copy Plan</button>
+      </div>
+      <div id="stormSummary" class="ops-grid"></div>
+      <div id="stormPlanner"></div>
+      <div class="plan-bar" id="stormPlanBar"></div>
+      <pre id="stormPlanText" class="ops-plan-text"></pre>
+    </div>
+  </section>
+
+  <section class="ops-view" id="view-report" hidden>
+    <div class="ops-shell">
+      <div class="ops-head">
+        <div>
+          <div class="ops-eyebrow">Alliance Ops &middot; Reset Day</div>
+          <h2>Weekly Alliance Report</h2>
+          <p>Officer-ready report scaffold: growth, readiness, missing data, Storm picks, and nudges for the next week.</p>
+        </div>
+        <div class="ops-actions">
+          <button id="exportOpsCsv" class="ops-copy">CSV</button>
+          <button id="copyWeeklyReport" class="ops-copy">Copy Report</button>
+        </div>
+      </div>
+      <div id="reportSummary" class="ops-grid"></div>
+      <pre id="weeklyReportText" class="ops-plan-text"></pre>
+      <div id="reportFeatures" class="feature-grid"></div>
+    </div>
+  </section>
+
+  <section class="ops-view" id="view-scaffold" hidden>
+    <div class="ops-shell">
+      <div class="ops-head">
+        <div>
+          <div class="ops-eyebrow">Alliance Ops &middot; Build Path</div>
+          <h2>Feature Scaffold</h2>
+          <p>Implementation path for converting the roster into a full alliance operations planner without risky in-game automation.</p>
+        </div>
+      </div>
+      <div id="scaffoldFeature" class="feature-grid"></div>
+      <div class="scaffold-list">
+        <div class="scaffold-step"><b>1. Schema extension</b><span>Add activityWeeks, squadSnapshots, stormPlans, and weeklyReports beside roster while preserving merge-on-save.</span></div>
+        <div class="scaffold-step"><b>2. Imports first</b><span>Build screenshot/OCR imports into review grids before saving any new ledger or snapshot data.</span></div>
+        <div class="scaffold-step"><b>3. Planning drafts</b><span>Keep generated Storm teams and reports editable before they become shared records.</span></div>
+        <div class="scaffold-step"><b>4. Export surfaces</b><span>Add copy, CSV, and image exports for Discord/WhatsApp/Line style alliance comms.</span></div>
+        <div class="scaffold-step"><b>5. Guardrails</b><span>Screenshot in, plan out, human clicks in-game. No macros, bots, packet reads, or emulator control.</span></div>
+        <div class="scaffold-step"><b>6. Migration toggle</b><span>Ship one feature at a time behind display scaffolds so the live roster remains usable.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>PSD Alliance Ops Roster &middot; screenshot in, plan out, human clicks in-game. TBC = THP not yet captured.</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <script src="seat-estimator.js"></script>
@@ -567,6 +789,14 @@
   // concurrent edit from another tab or phone can't wipe everyone else's changes.
   let syncedCore = new Set();
   let syncedVoted = new Set();
+  // Alliance ops planning stores — shared via the same bin, merged on save.
+  let activityWeeks = [];   // [{ weekStart, members: [{ name, vs, storm, marshal, zombie, donations, help, buster, reliability, notes, updated }] }]
+  let stormPlans = [];      // [{ id, title, starters, substitutes, text, createdAt, updatedAt, deleted? }]
+  let selectedWeek = null;      // weekStart shown in the Activity Ledger
+  let selectedStormPlan = null; // stormPlans id displayed in the Storm tab (null = live draft)
+  let squadSnapshots = [];      // [{ id, capturedAt, source, members: [{ name, thp, squad1..3, types, t11, kills }], updatedAt, deleted? }]
+  let selectedSnapshot = null;  // snapshot id viewed in the Squad Power tab
+  let lastRemoteSavedAt = 0;    // guards against JSONBin /latest returning a stale record
 
   // Rebuild the server/alliance filter dropdowns from the current roster values.
   function refreshFilters() {
@@ -582,7 +812,7 @@
   }
 
   function cacheLocal() {
-    try { localStorage.setItem(LOCAL_KEY, JSON.stringify({ core: [...core], votedYes: [...votedYes], editHash, roster })); } catch (e) {}
+    try { localStorage.setItem(LOCAL_KEY, JSON.stringify({ core: [...core], votedYes: [...votedYes], editHash, roster, activityWeeks, stormPlans, squadSnapshots })); } catch (e) {}
   }
 
   async function loadState() {
@@ -595,6 +825,9 @@
         votedYes = Array.isArray(o.votedYes) ? new Set(o.votedYes) : new Set(core);
         if (o.editHash) editHash = o.editHash;
         if (Array.isArray(o.roster) && o.roster.length) roster = o.roster;
+        if (Array.isArray(o.activityWeeks)) activityWeeks = o.activityWeeks;
+        if (Array.isArray(o.stormPlans)) stormPlans = o.stormPlans;
+        if (Array.isArray(o.squadSnapshots)) squadSnapshots = o.squadSnapshots;
       }
     } catch (e) {}
 
@@ -611,6 +844,10 @@
       if (Array.isArray(rec.core)) core = new Set(rec.core);
       votedYes = Array.isArray(rec.votedYes) ? new Set(rec.votedYes) : new Set(core);
       if (rec.editHash) editHash = rec.editHash;
+      if (Array.isArray(rec.activityWeeks)) activityWeeks = rec.activityWeeks;
+      if (Array.isArray(rec.stormPlans)) stormPlans = rec.stormPlans;
+      if (Array.isArray(rec.squadSnapshots)) squadSnapshots = rec.squadSnapshots;
+      lastRemoteSavedAt = rec.savedAt || 0;
       syncedCore = new Set(core);   // baseline: what the remote has right now
       syncedVoted = new Set(votedYes);
       if (Array.isArray(rec.roster) && rec.roster.length) {
@@ -660,8 +897,52 @@
       core: mergeSet(core, syncedCore, remote.core),
       votedYes: mergeSet(votedYes, syncedVoted, remote.votedYes),
       editHash: editHash != null ? editHash : (remote.editHash != null ? remote.editHash : null),
-      roster: mergedRoster
+      roster: mergedRoster,
+      activityWeeks: mergeActivityWeeks(remote.activityWeeks),
+      stormPlans: mergeStormPlans(remote.stormPlans),
+      squadSnapshots: mergeSquadSnapshots(remote.squadSnapshots)
     };
+  }
+
+  // Ledger weeks merge by weekStart; inside a week, members merge by name with
+  // per-entry last-write-wins on `updated` (same rule as roster members).
+  function mergeActivityWeeks(remoteWeeks) {
+    const rByWeek = new Map((Array.isArray(remoteWeeks) ? remoteWeeks : []).map(w => [w.weekStart, w]));
+    const lByWeek = new Map(activityWeeks.map(w => [w.weekStart, w]));
+    const merged = [];
+    new Set([...rByWeek.keys(), ...lByWeek.keys()]).forEach(ws => {
+      const lw = lByWeek.get(ws), rw = rByWeek.get(ws);
+      if (!lw || !rw) { merged.push(lw || rw); return; }
+      const rm = new Map((rw.members || []).map(m => [m.name, m]));
+      const lm = new Map((lw.members || []).map(m => [m.name, m]));
+      const members = [];
+      new Set([...rm.keys(), ...lm.keys()]).forEach(n => {
+        const a = lm.get(n), b = rm.get(n);
+        if (a && b) members.push((a.updated || 0) > (b.updated || 0) ? a : b);
+        else members.push(a || b);
+      });
+      merged.push({ weekStart: ws, members });
+    });
+    merged.sort((a, b) => a.weekStart < b.weekStart ? 1 : -1); // newest first
+    return merged;
+  }
+
+  // Id-keyed collections (storm plans, squad snapshots) merge by id with
+  // last-write-wins on updatedAt. Deleting keeps a tombstone (`deleted: true`)
+  // so the removal survives the merge; tombstones older than 30 days are purged.
+  function mergeByIdLWW(localArr, remoteArr) {
+    const byId = new Map((Array.isArray(remoteArr) ? remoteArr : []).map(p => [p.id, p]));
+    localArr.forEach(p => {
+      const rp = byId.get(p.id);
+      if (!rp || (p.updatedAt || 0) > (rp.updatedAt || 0)) byId.set(p.id, p);
+    });
+    return [...byId.values()].filter(p => !p.deleted || Date.now() - (p.updatedAt || 0) < 30 * 86400e3);
+  }
+  function mergeStormPlans(remotePlans) {
+    return mergeByIdLWW(stormPlans, remotePlans).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  }
+  function mergeSquadSnapshots(remoteSnaps) {
+    return mergeByIdLWW(squadSnapshots, remoteSnaps).sort((a, b) => (b.capturedAt || 0) - (a.capturedAt || 0));
   }
 
   async function saveState(silent) {
@@ -675,20 +956,34 @@
       // Merge onto the freshest remote so concurrent edits aren't clobbered.
       let merged;
       try {
-        merged = mergeOntoRemote(await fetchRemoteRecord());
+        let remote = await fetchRemoteRecord();
+        // JSONBin /latest can serve a stale record during rapid updates. If the
+        // fetched record predates one we've already seen, wait briefly and
+        // re-fetch once before merging, so we don't resurrect old data.
+        if ((remote.savedAt || 0) < lastRemoteSavedAt) {
+          await new Promise(r => setTimeout(r, 900));
+          try {
+            const again = await fetchRemoteRecord();
+            if ((again.savedAt || 0) >= (remote.savedAt || 0)) remote = again;
+          } catch (e) {}
+        }
+        merged = mergeOntoRemote(remote);
       } catch (e) {
         // Can't read remote to merge — do NOT overwrite it with a stale snapshot.
         if (!silent) statusEl.textContent = 'Saved to this device (offline — will sync on next edit).';
         return;
       }
+      const savedAt = Date.now();
       const res = await fetch(JSONBIN.base + '/' + JSONBIN.binId, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'X-Access-Key': JSONBIN.accessKey },
-        body: JSON.stringify({ core: [...merged.core], votedYes: [...merged.votedYes], editHash: merged.editHash, roster: merged.roster })
+        body: JSON.stringify({ core: [...merged.core], votedYes: [...merged.votedYes], editHash: merged.editHash, roster: merged.roster, activityWeeks: merged.activityWeeks, stormPlans: merged.stormPlans, squadSnapshots: merged.squadSnapshots, savedAt })
       });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       // Adopt the merged result so this tab now reflects others' concurrent changes.
       core = merged.core; votedYes = merged.votedYes; editHash = merged.editHash; roster = merged.roster;
+      activityWeeks = merged.activityWeeks; stormPlans = merged.stormPlans; squadSnapshots = merged.squadSnapshots;
+      lastRemoteSavedAt = savedAt;
       syncedCore = new Set(core); syncedVoted = new Set(votedYes);
       cacheLocal();
       if (!silent) {
@@ -724,6 +1019,8 @@
       btn.classList.toggle('unlocked', editMode);
       btn.innerHTML = editMode ? '🔓 Editing (click to lock)' : '🔒 Edit';
     }
+    // Ops surfaces show edit affordances (editable plan text) only in edit mode.
+    if (document.getElementById('stormPlanBar')) renderOpsPlanner();
   }
 
   async function toggleCore(name) {
@@ -1080,8 +1377,611 @@
     };
     document.getElementById('votedCount').innerHTML = seatBreakdown(votedYes);
     document.getElementById('coreCount').innerHTML = seatBreakdown(core);
+    renderOpsPlanner();
   }
 
+  function opsMetric(label, value) {
+    return '<div class="ops-metric"><div class="v">' + escAttr(value) + '</div><div class="k">' + escAttr(label) + '</div></div>';
+  }
+
+  function opsFeature(title, body, bullets) {
+    return '<article class="feature-card"><h3>' + escAttr(title) + '</h3><p>' + escAttr(body) + '</p><ul>' +
+      bullets.map(b => '<li>' + escAttr(b) + '</li>').join('') + '</ul></article>';
+  }
+
+  function opsScore(m) {
+    const thp = m.thp || 0;
+    const squad = m.squad1 || 0;
+    const kills = Number(m.kills) || 0;
+    const t11 = (m.t11 === 'Yes' || m.t11 === true) ? 25000000 : 0;
+    const activity = m.vsActivity === '7.2m daily' ? 18000000 : m.vsActivity === 'Whatever the alliance needs' ? 12000000 : 0;
+    const buster = m.busterDay === 'Super Active' ? 8000000 : m.busterDay === '50/50' ? 3000000 : 0;
+    return squad * 1.55 + thp * 0.55 + kills * 1800000 + t11 + activity + buster;
+  }
+
+  function rankedOpsMembers() {
+    return [...roster].sort((a, b) => opsScore(b) - opsScore(a));
+  }
+
+  function memberPowerLine(m) {
+    return escAttr(m.name) + ' (' + (m.squad1 == null ? 'S1 TBC' : fmtM(m.squad1)) + ', ' + (m.t11 === 'Yes' || m.t11 === true ? 'T11' : 'no T11') + ')';
+  }
+
+  function opsMemberTable(title, members) {
+    const rows = members.map((m, i) => '<tr><td>' + (i + 1) + '</td><td>' + escAttr(m.name) + '</td><td class="num">' + (m.squad1 == null ? 'TBC' : fmtM(m.squad1)) + '</td><td>' + escAttr(m.squadType || '-') + '</td><td>' + ((m.t11 === 'Yes' || m.t11 === true) ? '<span class="ops-chip on">T11</span>' : '<span class="ops-chip off">No</span>') + '</td></tr>').join('');
+    return '<div class="feature-card"><h3>' + escAttr(title) + '</h3><table class="ops-table"><thead><tr><th>#</th><th>Commander</th><th class="num">S1</th><th>Type</th><th>T11</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  }
+
+  function splitStormTeams() {
+    const picked = rankedOpsMembers().slice(0, 20);
+    const teams = [{ name: 'Team A', members: [], total: 0 }, { name: 'Team B', members: [], total: 0 }];
+    picked.forEach(m => {
+      const target = teams[0].total <= teams[1].total ? teams[0] : teams[1];
+      target.members.push(m);
+      target.total += opsScore(m);
+    });
+    return { teams, subs: rankedOpsMembers().slice(20, 26) };
+  }
+
+  // ---- Activity Ledger (activityWeeks) --------------------------------------
+  const LEDGER_COLS = [
+    { key: 'vs', label: 'VS score', type: 'text' },
+    { key: 'storm', label: 'Storm', type: 'cycle', opts: ['', 'Starter', 'Sub', 'Missed'], tones: { Starter: 'on', Sub: 'mid', Missed: 'bad' } },
+    { key: 'marshal', label: 'Marshal', type: 'flag' },
+    { key: 'zombie', label: 'Zombie', type: 'flag' },
+    { key: 'donations', label: 'Donations', type: 'cycle', opts: ['', 'High', 'OK', 'Low'], tones: { High: 'on', OK: 'mid', Low: 'bad' } },
+    { key: 'help', label: 'Help', type: 'text' },
+    { key: 'buster', label: 'Buster', type: 'flag' },
+    { key: 'reliability', label: 'Reliability', type: 'cycle', opts: ['', 'Reliable', 'Available', 'Needs nudge', 'Away', 'No-show'], tones: { Reliable: 'on', Available: 'mid', 'Needs nudge': 'warn', Away: 'off', 'No-show': 'bad' } },
+    { key: 'notes', label: 'Notes', type: 'text' }
+  ];
+  const LEDGER_COL_BY_KEY = Object.fromEntries(LEDGER_COLS.map(c => [c.key, c]));
+
+  function isoDate(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function currentWeekStart() { const d = new Date(); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return isoDate(d); } // Monday of this week
+
+  // Ledger/plan edits arrive as many small taps (cycling a chip, several cells
+  // in a row). Debounce the shared save so a burst becomes one PUT.
+  let opsSaveTimer = null;
+  function scheduleOpsSave() {
+    clearTimeout(opsSaveTimer);
+    opsSaveTimer = setTimeout(() => { opsSaveTimer = null; saveState(); }, 1200);
+  }
+
+  function ledgerWeek() {
+    return activityWeeks.find(w => w.weekStart === selectedWeek) || activityWeeks[0] || null;
+  }
+  function ledgerEntry(week, name, create) {
+    let e = (week.members || (week.members = [])).find(m => m.name === name);
+    if (!e && create) { e = { name, updated: Date.now() }; week.members.push(e); }
+    return e;
+  }
+
+  function ledgerChip(col, val) {
+    if (col.type === 'flag') return val ? '<span class="ops-chip on">&#10003;</span>' : '<span class="ops-chip off">&mdash;</span>';
+    if (!val) return '<span class="ops-chip off">&mdash;</span>';
+    return '<span class="ops-chip ' + (col.tones[val] || 'off') + '">' + escAttr(val) + '</span>';
+  }
+
+  function renderLedger() {
+    const table = document.getElementById('ledgerTable');
+    const sel = document.getElementById('ledgerWeek');
+    if (!table || !sel) return;
+    const week = ledgerWeek();
+    if (week) selectedWeek = week.weekStart;
+    sel.innerHTML = activityWeeks.length
+      ? activityWeeks.map(w => '<option value="' + escAttr(w.weekStart) + '">Week of ' + escAttr(w.weekStart) + '</option>').join('')
+      : '<option value="">No weeks yet</option>';
+    sel.value = selectedWeek || '';
+    if (!week) {
+      table.innerHTML = '<tbody><tr><td class="muted">No ledger weeks yet &mdash; unlock Edit and click &ldquo;+ New week&rdquo; to start one.</td></tr></tbody>';
+      return;
+    }
+    const members = [...roster].sort((a, b) => (core.has(b.name) - core.has(a.name)) || a.name.localeCompare(b.name));
+    const head = '<thead><tr><th>Commander</th>' + LEDGER_COLS.map(c => '<th>' + c.label + '</th>').join('') + '</tr></thead>';
+    const body = members.map(m => {
+      const e = ledgerEntry(week, m.name, false) || {};
+      const cells = LEDGER_COLS.map(col => {
+        const v = e[col.key];
+        const empty = v == null || v === '';
+        const inner = col.type === 'text' ? (empty ? '&mdash;' : escAttr(v)) : ledgerChip(col, v);
+        return '<td data-key="' + col.key + '" data-name="' + escAttr(m.name) + '"' + (col.type === 'text' && empty ? ' class="muted"' : '') + '>' + inner + '</td>';
+      }).join('');
+      return '<tr><td>' + (core.has(m.name) ? '&#9733; ' : '') + escAttr(m.name) + '</td>' + cells + '</tr>';
+    }).join('');
+    table.innerHTML = head + '<tbody>' + body + '</tbody>';
+  }
+
+  function editLedgerCell(td, col, name) {
+    const week = ledgerWeek();
+    if (!week) return;
+    const entry = ledgerEntry(week, name, true);
+    const cur = entry[col.key] != null ? String(entry[col.key]) : '';
+    td.className = '';
+    td.innerHTML = '<input type="text" value="' + escAttr(cur) + '">';
+    const input = td.querySelector('input');
+    if (col.key === 'notes') input.style.width = '150px';
+    input.focus(); input.select();
+    let done = false;
+    const commit = save => {
+      if (done) return; done = true;
+      const v = input.value.trim();
+      const changed = (v || null) !== (entry[col.key] || null);
+      if (changed) { entry[col.key] = v || null; entry.updated = Date.now(); }
+      renderOpsPlanner();
+      if (save && changed) scheduleOpsSave();
+    };
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') commit(true);
+      if (e.key === 'Escape') { done = true; renderOpsPlanner(); }
+    });
+    input.addEventListener('blur', () => commit(true));
+  }
+
+  function wireLedger() {
+    const table = document.getElementById('ledgerTable');
+    const sel = document.getElementById('ledgerWeek');
+    const newBtn = document.getElementById('ledgerNewWeek');
+    if (!table || !sel || !newBtn) return;
+    sel.addEventListener('change', () => { selectedWeek = sel.value; renderOpsPlanner(); });
+    newBtn.addEventListener('click', () => {
+      if (!requireEdit()) return;
+      const ws = currentWeekStart();
+      if (!activityWeeks.some(w => w.weekStart === ws)) activityWeeks.unshift({ weekStart: ws, members: [] });
+      selectedWeek = ws;
+      renderOpsPlanner();
+      scheduleOpsSave();
+    });
+    table.addEventListener('click', e => {
+      const td = e.target.closest('td[data-key]');
+      if (!td || td.querySelector('input')) return;
+      if (!requireEdit()) return;
+      const col = LEDGER_COL_BY_KEY[td.getAttribute('data-key')];
+      const name = decode(td.getAttribute('data-name'));
+      const week = ledgerWeek();
+      if (!week || !col) return;
+      if (col.type === 'text') { editLedgerCell(td, col, name); return; }
+      const entry = ledgerEntry(week, name, true);
+      if (col.type === 'flag') entry[col.key] = !entry[col.key];
+      else { const cur = entry[col.key] || ''; entry[col.key] = col.opts[(col.opts.indexOf(cur) + 1) % col.opts.length] || null; }
+      entry.updated = Date.now();
+      renderOpsPlanner();
+      scheduleOpsSave();
+    });
+  }
+
+  // ---- Desert Storm saved plan drafts (stormPlans) --------------------------
+  function activeStormPlans() { return stormPlans.filter(p => !p.deleted); }
+
+  function buildStormText(storm) {
+    return [
+      'DESERT STORM DRAFT PLAN',
+      'Team A: ' + storm.teams[0].members.map(m => m.name).join(', '),
+      'Team B: ' + storm.teams[1].members.map(m => m.name).join(', '),
+      'Subs: ' + (storm.subs.map(m => m.name).join(', ') || 'TBC'),
+      'Opening: secure Hospitals, then Research/Information buffs.',
+      'Mid fight: rally Nuclear Silo, keep fillers rotating, call hospital swaps early.',
+      'Late fight: Oil Wells and crate runners flex by score gap.'
+    ].join('\n');
+  }
+
+  function renderStormPlanBar() {
+    const bar = document.getElementById('stormPlanBar');
+    if (!bar) return;
+    const plans = activeStormPlans();
+    if (selectedStormPlan && !plans.some(p => p.id === selectedStormPlan)) selectedStormPlan = null;
+    bar.innerHTML =
+      '<button class="plan-pill' + (selectedStormPlan ? '' : ' active') + '" data-plan="">&#9889; Live draft</button>' +
+      plans.map(p => '<button class="plan-pill' + (p.id === selectedStormPlan ? ' active' : '') + '" data-plan="' + escAttr(p.id) + '">' + escAttr(p.title) + '<span class="x" data-del="' + escAttr(p.id) + '">&#10005;</span></button>').join('') +
+      '<button class="plan-pill" id="stormSaveDraft">&#128190; Save draft</button>';
+  }
+
+  function wireStormPlans() {
+    const bar = document.getElementById('stormPlanBar');
+    const textEl = document.getElementById('stormPlanText');
+    if (!bar || !textEl) return;
+    bar.addEventListener('click', e => {
+      const del = e.target.closest('[data-del]');
+      if (del) {
+        if (!requireEdit()) return;
+        // Two-tap delete: first tap arms the ✕, second tap within 2.5s removes.
+        if (!del.classList.contains('confirm')) {
+          del.classList.add('confirm');
+          del.textContent = 'sure?';
+          setTimeout(() => { del.classList.remove('confirm'); del.innerHTML = '&#10005;'; }, 2500);
+          return;
+        }
+        const p = stormPlans.find(x => x.id === del.getAttribute('data-del'));
+        if (p) { p.deleted = true; p.updatedAt = Date.now(); }
+        if (p && selectedStormPlan === p.id) selectedStormPlan = null;
+        renderOpsPlanner();
+        scheduleOpsSave();
+        return;
+      }
+      if (e.target.closest('#stormSaveDraft')) {
+        if (!requireEdit()) return;
+        const storm = splitStormTeams();
+        const now = Date.now();
+        const plan = {
+          id: 'sp-' + now.toString(36) + Math.random().toString(36).slice(2, 6),
+          title: 'DS ' + isoDate(new Date()),
+          starters: storm.teams.map(t => t.members.map(m => m.name)),
+          substitutes: storm.subs.map(m => m.name),
+          text: buildStormText(storm),
+          createdAt: now,
+          updatedAt: now
+        };
+        stormPlans.unshift(plan);
+        selectedStormPlan = plan.id;
+        renderOpsPlanner();
+        scheduleOpsSave();
+        return;
+      }
+      const pill = e.target.closest('[data-plan]');
+      if (pill) { selectedStormPlan = pill.getAttribute('data-plan') || null; renderOpsPlanner(); }
+    });
+    // A saved plan's text is editable in place (edit mode only): click the
+    // block, tweak in the textarea, blur to commit. The live draft stays
+    // generated-only.
+    textEl.addEventListener('click', () => {
+      if (!selectedStormPlan || !editMode) return;
+      const plan = stormPlans.find(p => p.id === selectedStormPlan && !p.deleted);
+      if (!plan || textEl.style.display === 'none') return;
+      const ta = document.createElement('textarea');
+      ta.className = 'plan-edit';
+      ta.value = plan.text || '';
+      textEl.style.display = 'none';
+      textEl.parentNode.insertBefore(ta, textEl.nextSibling);
+      ta.focus();
+      ta.addEventListener('blur', () => {
+        const v = ta.value;
+        ta.remove();
+        textEl.style.display = '';
+        if (v !== plan.text) { plan.text = v; plan.updatedAt = Date.now(); renderOpsPlanner(); scheduleOpsSave(); }
+      });
+    });
+  }
+
+  // ---- Squad power snapshots (squadSnapshots) -------------------------------
+  function activeSnapshots() { return squadSnapshots.filter(s => !s.deleted); }
+
+  function selectedSnap() {
+    const snaps = activeSnapshots();
+    return snaps.find(s => s.id === selectedSnapshot) || snaps[0] || null;
+  }
+
+  function captureSnapshot() {
+    const now = Date.now();
+    const snap = {
+      id: 'ss-' + now.toString(36) + Math.random().toString(36).slice(2, 6),
+      capturedAt: now,
+      source: 'roster',
+      members: roster.map(m => ({
+        name: m.name,
+        thp: m.thp != null ? m.thp : null,
+        squad1: m.squad1 != null ? m.squad1 : null,
+        squad2: m.squad2 != null ? m.squad2 : null,
+        squad3: m.squad3 != null ? m.squad3 : null,
+        squadType: m.squadType || null,
+        squad2Type: m.squad2Type || null,
+        squad3Type: m.squad3Type || null,
+        t11: (m.t11 === 'Yes' || m.t11 === true),
+        kills: Number(m.kills) || 0
+      })),
+      createdAt: now,
+      updatedAt: now
+    };
+    squadSnapshots.unshift(snap);
+    selectedSnapshot = snap.id;
+  }
+
+  // Growth of the CURRENT roster vs a chosen snapshot.
+  function snapDeltas(snap) {
+    const then = new Map((snap.members || []).map(m => [m.name, m]));
+    return roster.map(m => {
+      const t = then.get(m.name);
+      return {
+        name: m.name,
+        thpThen: t && t.thp != null ? t.thp : null,
+        thpNow: m.thp != null ? m.thp : null,
+        dThp: m.thp != null && t && t.thp != null ? m.thp - t.thp : null,
+        dS1: m.squad1 != null && t && t.squad1 != null ? m.squad1 - t.squad1 : null,
+        isNew: !t
+      };
+    });
+  }
+
+  const fmtDelta = v => (v >= 0 ? '+' : '−') + fmtM(Math.abs(v));
+
+  function renderSnapshots() {
+    const sel = document.getElementById('snapSelect');
+    const panel = document.getElementById('snapDelta');
+    const hint = document.getElementById('snapHint');
+    if (!sel || !panel) return;
+    const snaps = activeSnapshots();
+    const snap = selectedSnap();
+    if (snap) selectedSnapshot = snap.id;
+    sel.innerHTML = snaps.length
+      ? snaps.map(s => '<option value="' + escAttr(s.id) + '">' + isoDate(new Date(s.capturedAt)) + ' &middot; ' + (s.members || []).length + ' members</option>').join('')
+      : '<option value="">No snapshots yet</option>';
+    sel.value = snap ? snap.id : '';
+    if (!snap) {
+      panel.innerHTML = '';
+      if (hint) hint.textContent = 'Snapshots freeze every commander’s power so growth becomes visible';
+      return;
+    }
+    if (hint) hint.textContent = 'Growth vs capture from ' + relTime(snap.capturedAt);
+    const ds = snapDeltas(snap);
+    const withD = ds.filter(d => d.dThp != null);
+    const totalD = withD.reduce((s, d) => s + d.dThp, 0);
+    const top = [...withD].sort((a, b) => b.dThp - a.dThp).slice(0, 10);
+    const newcomers = ds.filter(d => d.isNew).length;
+    const days = Math.max(1, Math.round((Date.now() - snap.capturedAt) / 86400e3));
+    const rows = top.map((d, i) => '<tr><td>' + (i + 1) + '</td><td>' + escAttr(d.name) + '</td>' +
+      '<td class="num">' + (d.thpThen != null ? fmtM(d.thpThen) : '&mdash;') + '</td>' +
+      '<td class="num">' + (d.thpNow != null ? fmtM(d.thpNow) : '&mdash;') + '</td>' +
+      '<td class="num"><span class="ops-chip ' + (d.dThp >= 0 ? 'on' : 'bad') + '">' + fmtDelta(d.dThp) + '</span></td>' +
+      '<td class="num">' + (d.dS1 != null ? fmtDelta(d.dS1) : '&mdash;') + '</td></tr>').join('');
+    panel.innerHTML = '<div class="ops-grid">' +
+      opsMetric('Snapshots', snaps.length) +
+      opsMetric('Since capture', days + 'd') +
+      opsMetric('THP growth', withD.length ? fmtDelta(totalD) : '—') +
+      opsMetric('New members', newcomers) +
+      '</div>' +
+      '<div class="feature-card" style="margin-bottom:10px;"><h3>Top growth since ' + isoDate(new Date(snap.capturedAt)) + '</h3>' +
+      (top.length
+        ? '<table class="ops-table"><thead><tr><th>#</th><th>Commander</th><th class="num">THP then</th><th class="num">THP now</th><th class="num">&Delta; THP</th><th class="num">&Delta; S1</th></tr></thead><tbody>' + rows + '</tbody></table>'
+        : '<p>No overlapping THP data between this snapshot and the current roster yet.</p>') +
+      '</div>';
+  }
+
+  function wireSnapshots() {
+    const sel = document.getElementById('snapSelect');
+    const capBtn = document.getElementById('snapCapture');
+    const delBtn = document.getElementById('snapDelete');
+    if (!sel || !capBtn || !delBtn) return;
+    sel.addEventListener('change', () => { selectedSnapshot = sel.value || null; renderOpsPlanner(); });
+    capBtn.addEventListener('click', () => {
+      if (!requireEdit()) return;
+      captureSnapshot();
+      renderOpsPlanner();
+      scheduleOpsSave();
+      statusEl.textContent = 'Snapshot captured — sharing…';
+    });
+    delBtn.addEventListener('click', () => {
+      if (!requireEdit()) return;
+      const snap = selectedSnap();
+      if (!snap) return;
+      // Two-tap delete, same pattern as saved Storm plans.
+      if (!delBtn.classList.contains('confirm')) {
+        delBtn.classList.add('confirm');
+        delBtn.textContent = 'sure?';
+        setTimeout(() => { delBtn.classList.remove('confirm'); delBtn.innerHTML = '&#128465;'; }, 2500);
+        return;
+      }
+      delBtn.classList.remove('confirm');
+      delBtn.innerHTML = '&#128465;';
+      snap.deleted = true;
+      snap.updatedAt = Date.now();
+      selectedSnapshot = null;
+      renderOpsPlanner();
+      scheduleOpsSave();
+    });
+  }
+
+  function exportOpsCSV() {
+    const week = ledgerWeek();
+    const entryBy = new Map(week ? (week.members || []).map(m => [m.name, m]) : []);
+    const latestSnap = activeSnapshots()[0];
+    const thenBy = new Map(latestSnap ? (latestSnap.members || []).map(m => [m.name, m]) : []);
+    const sorted = [...roster].sort((a, b) => (b.thp || 0) - (a.thp || 0));
+    const headers = ['Commander', 'Core', 'THP', 'Squad 1', 'Squad Type', 'T11',
+      'VS score' + (week ? ' (' + week.weekStart + ')' : ''), 'Storm', 'Marshal', 'Zombie', 'Donations', 'Help', 'Buster', 'Reliability', 'Notes',
+      'THP delta' + (latestSnap ? ' since ' + isoDate(new Date(latestSnap.capturedAt)) : '')];
+    const lines = sorted.map(m => {
+      const e = entryBy.get(m.name) || {};
+      const t = thenBy.get(m.name);
+      const d = m.thp != null && t && t.thp != null ? m.thp - t.thp : null;
+      return [m.name, core.has(m.name) ? 'Yes' : '', m.thp == null ? '' : m.thp, m.squad1 == null ? '' : m.squad1,
+        m.squadType || '', (m.t11 === 'Yes' || m.t11 === true) ? 'Yes' : 'No',
+        e.vs || '', e.storm || '', e.marshal ? 'Yes' : '', e.zombie ? 'Yes' : '', e.donations || '', e.help || '', e.buster ? 'Yes' : '', e.reliability || '', e.notes || '',
+        d == null ? '' : d].map(csvCell).join(',');
+    });
+    const csv = headers.map(csvCell).join(',') + '\r\n' + lines.join('\r\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'psd-ops-report-' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    statusEl.textContent = 'Exported ops report for ' + sorted.length + ' commanders.';
+  }
+
+  function renderOpsPlanner() {
+    const byRank = rankedOpsMembers();
+    const coreMembers = roster.filter(m => core.has(m.name));
+    const squadComplete = roster.filter(m => m.squad1 != null && m.squad2 != null && m.squad3 != null).length;
+    const squadAny = roster.filter(m => m.squad1 != null || m.squad2 != null || m.squad3 != null).length;
+    const t11Count = roster.filter(m => m.t11 === 'Yes' || m.t11 === true).length;
+    const vsTracked = roster.filter(m => !!m.vsActivity).length;
+    const busterTracked = roster.filter(m => !!m.busterDay).length;
+    const missingActivity = roster.filter(m => !m.vsActivity || !m.busterDay).slice(0, 8);
+    const missingSquads = roster.filter(m => m.squad1 == null || m.squad2 == null || m.squad3 == null).slice(0, 8);
+    const totalThp = roster.reduce((s, m) => s + (m.thp || 0), 0);
+    const totalS1 = roster.reduce((s, m) => s + (m.squad1 || 0), 0);
+    const topFive = byRank.slice(0, 5);
+    const storm = splitStormTeams();
+
+    // Activity metrics come from the selected ledger week once one exists;
+    // before that, fall back to the roster survey answers.
+    const week = ledgerWeek();
+    const entryBy = new Map(week ? (week.members || []).map(m => [m.name, m]) : []);
+    const hasVs = m => { const e = entryBy.get(m.name); return e && e.vs != null && e.vs !== ''; };
+    const vsLogged = week ? roster.filter(hasVs).length : 0;
+    const stormMarked = week ? (week.members || []).filter(e => e.storm).length : 0;
+    const flagged = week ? (week.members || []).filter(e => ['Needs nudge', 'Away', 'No-show'].includes(e.reliability)) : [];
+    const needVs = week ? roster.filter(m => !hasVs(m)) : [];
+
+    const activitySummary = document.getElementById('activitySummary');
+    if (activitySummary) activitySummary.innerHTML = (week ? [
+      opsMetric('Week start', week.weekStart.slice(5)),
+      opsMetric('VS logged', vsLogged + '/' + roster.length),
+      opsMetric('Storm marked', stormMarked),
+      opsMetric('Flagged', flagged.length)
+    ] : [
+      opsMetric('Members tracked', roster.length),
+      opsMetric('VS answers', vsTracked + '/' + roster.length),
+      opsMetric('Buster answers', busterTracked + '/' + roster.length),
+      opsMetric('Need follow-up', missingActivity.length ? missingActivity.length + '+' : '0')
+    ]).join('');
+
+    const activityFeatures = document.getElementById('activityFeatures');
+    if (activityFeatures) activityFeatures.innerHTML = [
+      opsFeature('Follow-up queue', week ? 'Commanders with no VS score logged for this week.' : 'Auto-build a short list for officers before reset.',
+        week ? (needVs.length ? needVs.slice(0, 8).map(m => m.name).concat(needVs.length > 8 ? ['+' + (needVs.length - 8) + ' more'] : []) : ['Every commander has a VS score this week'])
+             : (missingActivity.length ? missingActivity.map(m => m.name + ' needs VS/Buster info') : ['All current activity fields are filled'])),
+      opsFeature('Reliability legend', 'Tap the Reliability cell to cycle a commander through the planning signals.', ['Reliable — plan around them', 'Available — usually fine', 'Needs nudge — message before events', 'Away — skip this week', 'No-show — risk for starters']),
+      opsFeature('Import routes', 'Extend the OCR review pattern already used by THP/kills.', ['VS screenshot import', 'Donation ranking import', 'Event attendance import', 'Review before apply'])
+    ].join('');
+
+    const squadSummary = document.getElementById('squadSummary');
+    if (squadSummary) squadSummary.innerHTML = [
+      opsMetric('Alliance THP', fmtM(totalThp)),
+      opsMetric('Squad 1 total', fmtM(totalS1)),
+      opsMetric('Any squad data', squadAny + '/' + roster.length),
+      opsMetric('T11 confirmed', t11Count)
+    ].join('');
+
+    const typeCounts = { Tank: 0, Air: 0, Missile: 0 };
+    const typeT11 = { Tank: 0, Air: 0, Missile: 0 };
+    roster.forEach(m => {
+      if (m.squadType && typeCounts[m.squadType] != null) {
+        typeCounts[m.squadType]++;
+        if (m.t11 === 'Yes' || m.t11 === true) typeT11[m.squadType]++;
+      }
+    });
+    const typed = typeCounts.Tank + typeCounts.Air + typeCounts.Missile;
+    const weakestType = ['Tank', 'Air', 'Missile'].sort((a, b) => typeCounts[a] - typeCounts[b])[0];
+
+    const squadFeatures = document.getElementById('squadFeatures');
+    if (squadFeatures) squadFeatures.innerHTML = [
+      opsFeature('Power completeness', 'Officer queue for missing or stale combat data.', missingSquads.length ? missingSquads.map(m => m.name + ' missing squad detail') : ['All squads have current data']),
+      opsFeature('Type balance', 'Squad 1 types across the roster' + (typed < roster.length ? ' (' + (roster.length - typed) + ' untyped)' : '') + '.', [
+        '🛡️ Tank: ' + typeCounts.Tank + ' (T11: ' + typeT11.Tank + ')',
+        '✈️ Air: ' + typeCounts.Air + ' (T11: ' + typeT11.Air + ')',
+        '🚀 Missile: ' + typeCounts.Missile + ' (T11: ' + typeT11.Missile + ')',
+        typed ? 'Thinnest bench: ' + weakestType : 'No squad types recorded yet'
+      ]),
+      opsMemberTable('Top battle candidates', topFive)
+    ].join('');
+
+    const stormSummary = document.getElementById('stormSummary');
+    if (stormSummary) stormSummary.innerHTML = [
+      opsMetric('Suggested starters', Math.min(20, byRank.length)),
+      opsMetric('Sub bench', storm.subs.length),
+      opsMetric('Saved drafts', activeStormPlans().length),
+      opsMetric('Team split', storm.teams[0].members.length + ' / ' + storm.teams[1].members.length)
+    ].join('');
+
+    const buildingPlan = ['Hospital', 'Research Center', 'Information Center', 'Arsenal', 'Mercenary Factory', 'Nuclear Silo', 'Oil Well', 'Flex / crate runner'];
+    const stormPlanner = document.getElementById('stormPlanner');
+    if (stormPlanner) stormPlanner.innerHTML = '<div class="ops-split">' +
+      storm.teams.map(team => opsMemberTable(team.name + ' starters', team.members.slice(0, 10))).join('') +
+      '</div>' +
+      '<div class="feature-grid" style="margin-top:10px;">' +
+      opsFeature('Building assignment scaffold', 'Assign rally leads and fillers by phase instead of improvising in chat.', buildingPlan) +
+      opsFeature('Substitution bench', 'Keep six ready names visible for late swaps.', storm.subs.length ? storm.subs.map(memberPowerLine) : ['No substitutes available yet']) +
+      '</div>';
+
+    const stormText = buildStormText(storm);
+    const selPlan = selectedStormPlan ? stormPlans.find(p => p.id === selectedStormPlan && !p.deleted) : null;
+    const stormPlanTextEl = document.getElementById('stormPlanText');
+    if (stormPlanTextEl) {
+      stormPlanTextEl.textContent = selPlan ? selPlan.text : stormText;
+      stormPlanTextEl.classList.toggle('plan-editable', !!selPlan && editMode);
+      stormPlanTextEl.title = selPlan && editMode ? 'Click to edit this saved plan' : '';
+    }
+    renderStormPlanBar();
+
+    const reportSummary = document.getElementById('reportSummary');
+    if (reportSummary) reportSummary.innerHTML = [
+      opsMetric('Roster size', roster.length),
+      opsMetric('Core', core.size),
+      opsMetric('Squad complete', squadComplete),
+      opsMetric('Storm ready pool', byRank.filter(m => m.squad1 != null).slice(0, 20).length)
+    ].join('');
+
+    const reportText = [
+      'PSD WEEKLY ALLIANCE REPORT',
+      'Members tracked: ' + roster.length,
+      'Core members: ' + core.size,
+      'Alliance THP: ' + fmtM(totalThp),
+      'Squad 1 total: ' + fmtM(totalS1),
+      'T11 confirmed: ' + t11Count
+    ].concat(week ? [
+      'Ledger week ' + week.weekStart + ': VS logged ' + vsLogged + '/' + roster.length + ', Storm marked ' + stormMarked,
+      'Reliability flags: ' + (flagged.map(e => e.name + ' (' + e.reliability + ')').join(', ') || 'none')
+    ] : []).concat((() => {
+      const snap = activeSnapshots()[0];
+      if (!snap) return [];
+      const ds = snapDeltas(snap).filter(d => d.dThp != null).sort((a, b) => b.dThp - a.dThp);
+      if (!ds.length) return ['Growth since ' + isoDate(new Date(snap.capturedAt)) + ': no overlapping data yet'];
+      const tot = ds.reduce((s, d) => s + d.dThp, 0);
+      return ['Growth since ' + isoDate(new Date(snap.capturedAt)) + ': ' + fmtDelta(tot) + ' THP; top: ' +
+        ds.slice(0, 3).map(d => d.name + ' ' + fmtDelta(d.dThp)).join(', ')];
+    })()).concat([
+      'Top Storm candidates: ' + topFive.map(m => m.name).join(', '),
+      'Needs activity info: ' + (missingActivity.map(m => m.name).join(', ') || 'none'),
+      'Needs squad update: ' + (missingSquads.map(m => m.name).join(', ') || 'none')
+    ]).join('\n');
+    const weeklyReportText = document.getElementById('weeklyReportText');
+    if (weeklyReportText) weeklyReportText.textContent = reportText;
+
+    const reportFeatures = document.getElementById('reportFeatures');
+    if (reportFeatures) reportFeatures.innerHTML = [
+      opsFeature('Officer summary', 'One copyable block for reset-day leadership review.', ['Roster totals', 'Top gainers once snapshots exist', 'Missing data', 'Recommended Storm starters']),
+      opsFeature('Member nudges', 'Generate short follow-up lists without hunting through the table.', ['Needs squad update', 'Needs activity answer', 'Away/no-show risk', 'Promotion candidates'])
+    ].join('');
+
+    const scaffoldFeature = document.getElementById('scaffoldFeature');
+    if (scaffoldFeature) scaffoldFeature.innerHTML = [
+      opsFeature('Live modules', 'The Activity Ledger and Storm drafts now write to the shared store; the roster stays the working default.', ['Roster — live', 'Activity Ledger — editable weekly grid, shared', 'Storm plans — saved, editable drafts, shared', 'Squad snapshots & reports — generated only (next)']),
+      opsFeature('Data model', 'New top-level arrays live beside roster without changing existing member units.', ['activityWeeks — live, merged per entry', 'stormPlans — live, merged per plan (tombstone deletes)', 'squadSnapshots — next', 'weeklyReports — next']),
+      opsFeature('Safe automation boundary', 'Keep the tool officer-driven and account-safe.', ['Screenshot OCR imports', 'Review-before-save', 'Copy/export plans', 'No in-game auto-clicking or bots']),
+      opsFeature('Next build slice', 'Best next implementation after this one.', ['OCR import for VS / donation screenshots', 'Squad snapshot capture with growth deltas', 'RSVP + role assignment on saved Storm plans', 'CSV/image export for weekly reports'])
+    ].join('');
+
+    renderLedger();
+    renderSnapshots();
+  }
+
+  function wireOpsTabs() {
+    document.querySelectorAll('.ops-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const view = btn.getAttribute('data-view');
+        document.querySelectorAll('.ops-tab').forEach(b => b.classList.toggle('active', b === btn));
+        document.querySelectorAll('.ops-view').forEach(section => {
+          const on = section.id === 'view-' + view;
+          section.hidden = !on;
+          section.classList.toggle('active', on);
+        });
+        renderOpsPlanner();
+      });
+    });
+  }
+
+  async function copyOpsText(id, label) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    try {
+      await navigator.clipboard.writeText(el.textContent);
+      statusEl.textContent = label + ' copied.';
+    } catch (e) {
+      statusEl.textContent = label + ' is ready to copy.';
+    }
+  }
   function seatOf(m) {
     if (m.thp == null || typeof SeatEstimator === 'undefined') return null;
     return SeatEstimator.estimateSeat(m.thp / 1e6, m.squad1 != null ? m.squad1 / 1e6 : null);
@@ -1713,6 +2613,14 @@
   };
   wireFlagFilter('submFilterBtn', '&#128232;', 'Submitted', () => submFilter, v => submFilter = v);
   wireFlagFilter('apprFilterBtn', '&#129309;', 'Approved', () => apprFilter, v => apprFilter = v);
+
+  wireOpsTabs();
+  wireLedger();
+  wireStormPlans();
+  wireSnapshots();
+  document.getElementById('copyStormPlan').addEventListener('click', () => copyOpsText('stormPlanText', 'Desert Storm plan'));
+  document.getElementById('copyWeeklyReport').addEventListener('click', () => copyOpsText('weeklyReportText', 'Weekly report'));
+  document.getElementById('exportOpsCsv').addEventListener('click', exportOpsCSV);
 
   document.getElementById('importBtn').addEventListener('click', () => {
     const p = document.getElementById('importPanel');
