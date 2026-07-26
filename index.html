@@ -720,19 +720,23 @@
     {name:"Hanuma123", thp:null, kills:0.0005}
   ];
 
-  // ---- Shared storage (JSONBin.io) ------------------------------------------
-  // The bin holds BOTH the shared core marks and the roster itself, so OCR
-  // imports and edits persist for everyone. The access key is a low-privilege
-  // Read+Update key (NOT the master key) and is intentionally visible in this
-  // public page. Concurrent edits are last-write-wins. A localStorage copy is
-  // always kept so the page works offline and renders instantly.
-  const JSONBIN = {
-    binId: '6a3d3011da38895dfefd77ce',
-    accessKey: '$2a$10$egxZyu05krfM.7bD6.6YMOYkS5JCyTRZms/QZb2xl9jqCANWuEFlG',
-    base: 'https://api.jsonbin.io/v3/b'
+  // ---- Shared storage (Firebase Realtime Database) --------------------------
+  // The whole store (core marks, roster, and the ops planning arrays) lives at
+  // one JSON node, read/written over Firebase's REST API: GET/PUT on
+  // <dbUrl>/<path>.json. Reads are strongly consistent (unlike the old JSONBin
+  // replicas), and ETags give true compare-and-set: a PUT with if-match fails
+  // with 412 if anyone wrote in between, and we re-fetch + re-merge + retry.
+  // The old JSONBin bin (6a3d3011…) exhausted its lifetime request quota on
+  // 2026-07-26; backups/psd-ops-backup-2026-07-26.json holds its final state.
+  // Access model is unchanged: the URL is public in this page, and writes are
+  // deterred by the soft password gate. Setup: docs/firebase-setup.md.
+  const FIREBASE = {
+    dbUrl: '',     // Realtime Database URL, e.g. 'https://psd-roster-default-rtdb.europe-west1.firebasedatabase.app' — no trailing slash
+    path: 'store'
   };
   const LOCAL_KEY = 'up7-state';
-  const configured = () => Boolean(JSONBIN.binId && JSONBIN.accessKey);
+  const configured = () => Boolean(FIREBASE.dbUrl);
+  const storeUrl = () => FIREBASE.dbUrl + '/' + FIREBASE.path + '.json';
 
   const tbody = document.getElementById('tbody');
   const statusEl = document.getElementById('status');
@@ -811,7 +815,6 @@
   let weeklyReports = [];       // [{ id, title, text, createdAt, updatedAt, deleted? }] — frozen report snapshots
   let selectedReport = null;    // weeklyReports id displayed (null = live report)
   let liveReportText = '';      // latest generated report text (freeze source)
-  let lastRemoteSavedAt = 0;    // guards against JSONBin /latest returning a stale record
 
   // Rebuild the server/alliance filter dropdowns from the current roster values.
   function refreshFilters() {
@@ -852,11 +855,9 @@
       return;
     }
     try {
-      const res = await fetch(JSONBIN.base + '/' + JSONBIN.binId + '/latest?_cb=' + Date.now(), {
-        headers: { 'X-Access-Key': JSONBIN.accessKey, 'X-Bin-Meta': 'false' }
-      });
+      const res = await fetch(storeUrl());
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      const rec = await res.json();
+      const rec = (await res.json()) || {}; // Firebase returns null until the node is first seeded
       if (Array.isArray(rec.core)) core = new Set(rec.core);
       votedYes = Array.isArray(rec.votedYes) ? new Set(rec.votedYes) : new Set(core);
       if (rec.editHash) editHash = rec.editHash;
@@ -864,7 +865,6 @@
       if (Array.isArray(rec.stormPlans)) stormPlans = rec.stormPlans;
       if (Array.isArray(rec.squadSnapshots)) squadSnapshots = rec.squadSnapshots;
       if (Array.isArray(rec.weeklyReports)) weeklyReports = rec.weeklyReports;
-      lastRemoteSavedAt = rec.savedAt || 0;
       syncedCore = new Set(core);   // baseline: what the remote has right now
       syncedVoted = new Set(votedYes);
       if (Array.isArray(rec.roster) && rec.roster.length) {
@@ -879,14 +879,13 @@
     }
   }
 
-  // Re-fetch the freshest remote record (cache-busted) so a save can merge onto
-  // whatever others have written, instead of overwriting the whole store.
+  // Re-fetch the freshest remote record (with its ETag) so a save can merge
+  // onto whatever others have written and PUT conditionally, instead of
+  // overwriting the whole store.
   async function fetchRemoteRecord() {
-    const res = await fetch(JSONBIN.base + '/' + JSONBIN.binId + '/latest?_cb=' + Date.now(), {
-      headers: { 'X-Access-Key': JSONBIN.accessKey, 'X-Bin-Meta': 'false' }
-    });
+    const res = await fetch(storeUrl(), { headers: { 'X-Firebase-ETag': 'true' } });
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    return res.json();
+    return { record: (await res.json()) || {}, etag: res.headers.get('ETag') };
   }
 
   // Merge our in-memory state onto a freshly-fetched remote record.
@@ -975,37 +974,36 @@
     if (!silent) statusEl.textContent = 'Saving…';
     try {
       // Merge onto the freshest remote so concurrent edits aren't clobbered.
-      let merged;
+      let merged, etag;
       try {
-        let remote = await fetchRemoteRecord();
-        // JSONBin /latest can serve a stale record during rapid updates. If the
-        // fetched record predates one we've already seen, wait briefly and
-        // re-fetch once before merging, so we don't resurrect old data.
-        if ((remote.savedAt || 0) < lastRemoteSavedAt) {
-          await new Promise(r => setTimeout(r, 900));
-          try {
-            const again = await fetchRemoteRecord();
-            if ((again.savedAt || 0) >= (remote.savedAt || 0)) remote = again;
-          } catch (e) {}
-        }
-        merged = mergeOntoRemote(remote);
+        const r = await fetchRemoteRecord();
+        merged = mergeOntoRemote(r.record);
+        etag = r.etag;
       } catch (e) {
         // Can't read remote to merge — do NOT overwrite it with a stale snapshot.
         if (!silent) statusEl.textContent = 'Saved to this device (offline — will sync on next edit).';
         return;
       }
-      const savedAt = Date.now();
-      const res = await fetch(JSONBIN.base + '/' + JSONBIN.binId, {
+      const body = () => JSON.stringify({ core: [...merged.core], votedYes: [...merged.votedYes], editHash: merged.editHash, roster: merged.roster, activityWeeks: merged.activityWeeks, stormPlans: merged.stormPlans, squadSnapshots: merged.squadSnapshots, weeklyReports: merged.weeklyReports, savedAt: Date.now() });
+      const put = () => fetch(storeUrl(), {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'X-Access-Key': JSONBIN.accessKey },
-        body: JSON.stringify({ core: [...merged.core], votedYes: [...merged.votedYes], editHash: merged.editHash, roster: merged.roster, activityWeeks: merged.activityWeeks, stormPlans: merged.stormPlans, squadSnapshots: merged.squadSnapshots, weeklyReports: merged.weeklyReports, savedAt })
+        headers: { 'Content-Type': 'application/json', 'if-match': etag },
+        body: body()
       });
+      let res = await put();
+      if (res.status === 412) {
+        // Compare-and-set lost: someone wrote between our read and PUT.
+        // Re-fetch their version, re-merge our changes onto it, retry once.
+        const r2 = await fetchRemoteRecord();
+        merged = mergeOntoRemote(r2.record);
+        etag = r2.etag;
+        res = await put();
+      }
       if (!res.ok) throw new Error('HTTP ' + res.status);
       // Adopt the merged result so this tab now reflects others' concurrent changes.
       core = merged.core; votedYes = merged.votedYes; editHash = merged.editHash; roster = merged.roster;
       activityWeeks = merged.activityWeeks; stormPlans = merged.stormPlans; squadSnapshots = merged.squadSnapshots;
       weeklyReports = merged.weeklyReports;
-      lastRemoteSavedAt = savedAt;
       syncedCore = new Set(core); syncedVoted = new Set(votedYes);
       cacheLocal();
       if (!silent) {
