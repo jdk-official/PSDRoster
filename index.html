@@ -310,6 +310,12 @@
   .ops-table td { font-family: var(--lw-font-ui); color: var(--lw-text-1); }
   .ops-table td.num { text-align: right; font-family: var(--lw-font-data); font-weight: 700; letter-spacing: -0.01em; }
   .ops-table tr:last-child td { border-bottom: none; }
+  /* The roster table's striping/hover rules above target bare `tbody tr` and
+     would wash out the dark ops tables — pin them back to the glass look. */
+  .ops-table thead th { background: transparent; }
+  .ops-table tbody tr, .ops-table tbody tr:nth-child(even) { background: transparent; color: inherit; }
+  .ops-table tbody tr:hover { filter: none; background: rgba(255,255,255,0.04); }
+  .ops-table td { font-weight: 500; }
   .ops-chip { display: inline-block; font-family: var(--lw-font-data); font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; border-radius: 999px; padding: 3px 7px; }
   .ops-chip.on { color: var(--lw-accent); background: var(--lw-accent-glow); border: 1px solid var(--lw-accent-border); }
   .ops-chip.off { color: var(--lw-text-3); background: var(--lw-glass-bg-3); border: 1px solid var(--lw-border-2); }
