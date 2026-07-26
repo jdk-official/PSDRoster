@@ -77,3 +77,26 @@ Build order:
 3. Add JSONBin merge support for new arrays.
 4. Add OCR imports for activity and squad snapshots.
 5. Add export/share surfaces for Storm plans and weekly reports.
+
+## Status — 2026-07-26
+
+All five build-order steps are live, styled after the LWServers design system
+(see lwservers-style-reference.md):
+
+- **Activity Ledger**: editable weekly grid (VS, Storm, Marshal, Zombie,
+  donations + raw points, help, Buster, reliability, notes), VS and donation
+  OCR imports (donations tier by tercile), follow-up queue.
+- **Squad Power**: dated snapshots, growth deltas vs current roster or any
+  other snapshot, computed Tank/Air/Missile balance.
+- **Desert Storm**: auto-draft split, saved drafts with per-commander role +
+  RSVP chips, board-synced copy text, PNG export.
+- **Weekly Report**: ledger/growth lines, freezable immutable snapshots,
+  CSV + PNG export.
+- **Storage**: all four arrays (activityWeeks, stormPlans, squadSnapshots,
+  weeklyReports) ride merge-on-save — weeks merge per entry, id-keyed
+  collections merge LWW with 30-day tombstones; savedAt stamp + one-retry
+  stale-read guard for JSONBin /latest; debounced ops saves; full-store JSON
+  backup button on the Scaffold tab.
+
+Not built yet: event-attendance import, RSVP self-serve (currently officer
+sets RSVP), snapshot source markers for screenshot-derived captures.

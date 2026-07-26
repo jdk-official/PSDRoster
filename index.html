@@ -451,6 +451,7 @@
           <option value="thp">Total Hero Power (keeps [UP7] only)</option>
           <option value="kills">Kills</option>
           <option value="vs">VS points (into Activity Ledger week)</option>
+          <option value="donations">Donation ranking (into Activity Ledger week)</option>
         </select>
       </label>
       <input type="file" id="ocrFile" accept="image/*" multiple>
@@ -539,6 +540,7 @@
       <div id="squadSummary" class="ops-grid"></div>
       <div class="ledger-bar">
         <select id="snapSelect" class="ledger-week"></select>
+        <select id="snapCompare" class="ledger-week"></select>
         <button id="snapCapture" class="ops-copy">&#128248; Capture snapshot</button>
         <button id="snapDelete" class="ops-copy snap-del" title="Delete selected snapshot">&#128465;</button>
         <span class="ledger-hint" id="snapHint"></span>
@@ -597,6 +599,7 @@
           <h2>Feature Scaffold</h2>
           <p>Implementation path for converting the roster into a full alliance operations planner without risky in-game automation.</p>
         </div>
+        <button id="backupJson" class="ops-copy" title="Download the full shared store as JSON">&#128190; Backup JSON</button>
       </div>
       <div id="scaffoldFeature" class="feature-grid"></div>
       <div class="scaffold-list">
@@ -804,6 +807,7 @@
   let selectedStormPlan = null; // stormPlans id displayed in the Storm tab (null = live draft)
   let squadSnapshots = [];      // [{ id, capturedAt, source, members: [{ name, thp, squad1..3, types, t11, kills }], updatedAt, deleted? }]
   let selectedSnapshot = null;  // snapshot id viewed in the Squad Power tab
+  let snapCompareTo = 'current'; // what the selected snapshot is compared against ('current' or a snapshot id)
   let weeklyReports = [];       // [{ id, title, text, createdAt, updatedAt, deleted? }] — frozen report snapshots
   let selectedReport = null;    // weeklyReports id displayed (null = live report)
   let liveReportText = '';      // latest generated report text (freeze source)
@@ -1756,10 +1760,11 @@
     selectedSnapshot = snap.id;
   }
 
-  // Growth of the CURRENT roster vs a chosen snapshot.
-  function snapDeltas(snap) {
+  // Growth of `nowMembers` (current roster, or another snapshot's members)
+  // vs a chosen baseline snapshot.
+  function snapDeltas(snap, nowMembers) {
     const then = new Map((snap.members || []).map(m => [m.name, m]));
-    return roster.map(m => {
+    return nowMembers.map(m => {
       const t = then.get(m.name);
       return {
         name: m.name,
@@ -1776,9 +1781,10 @@
 
   function renderSnapshots() {
     const sel = document.getElementById('snapSelect');
+    const cmp = document.getElementById('snapCompare');
     const panel = document.getElementById('snapDelta');
     const hint = document.getElementById('snapHint');
-    if (!sel || !panel) return;
+    if (!sel || !cmp || !panel) return;
     const snaps = activeSnapshots();
     const snap = selectedSnap();
     if (snap) selectedSnapshot = snap.id;
@@ -1786,18 +1792,29 @@
       ? snaps.map(s => '<option value="' + escAttr(s.id) + '">' + isoDate(new Date(s.capturedAt)) + ' &middot; ' + (s.members || []).length + ' members</option>').join('')
       : '<option value="">No snapshots yet</option>';
     sel.value = snap ? snap.id : '';
+    const compareSnap = snapCompareTo !== 'current' ? snaps.find(s => s.id === snapCompareTo && (!snap || s.id !== snap.id)) : null;
+    if (snapCompareTo !== 'current' && !compareSnap) snapCompareTo = 'current';
+    cmp.innerHTML = '<option value="current">vs Current roster</option>' +
+      snaps.filter(s => !snap || s.id !== snap.id).map(s => '<option value="' + escAttr(s.id) + '">vs ' + isoDate(new Date(s.capturedAt)) + '</option>').join('');
+    cmp.value = snapCompareTo;
+    cmp.hidden = !snap;
     if (!snap) {
       panel.innerHTML = '';
       if (hint) hint.textContent = 'Snapshots freeze every commander’s power so growth becomes visible';
       return;
     }
-    if (hint) hint.textContent = 'Growth vs capture from ' + relTime(snap.capturedAt);
-    const ds = snapDeltas(snap);
+    const nowMembers = compareSnap ? (compareSnap.members || []) : roster;
+    const nowLabel = compareSnap ? isoDate(new Date(compareSnap.capturedAt)) : 'now';
+    if (hint) hint.textContent = compareSnap
+      ? 'Comparing ' + isoDate(new Date(snap.capturedAt)) + ' → ' + nowLabel
+      : 'Growth vs capture from ' + relTime(snap.capturedAt);
+    const ds = snapDeltas(snap, nowMembers);
     const withD = ds.filter(d => d.dThp != null);
     const totalD = withD.reduce((s, d) => s + d.dThp, 0);
     const top = [...withD].sort((a, b) => b.dThp - a.dThp).slice(0, 10);
     const newcomers = ds.filter(d => d.isNew).length;
-    const days = Math.max(1, Math.round((Date.now() - snap.capturedAt) / 86400e3));
+    const endTime = compareSnap ? compareSnap.capturedAt : Date.now();
+    const days = Math.max(1, Math.round(Math.abs(endTime - snap.capturedAt) / 86400e3));
     const rows = top.map((d, i) => '<tr><td>' + (i + 1) + '</td><td>' + escAttr(d.name) + '</td>' +
       '<td class="num">' + (d.thpThen != null ? fmtM(d.thpThen) : '&mdash;') + '</td>' +
       '<td class="num">' + (d.thpNow != null ? fmtM(d.thpNow) : '&mdash;') + '</td>' +
@@ -1805,14 +1822,14 @@
       '<td class="num">' + (d.dS1 != null ? fmtDelta(d.dS1) : '&mdash;') + '</td></tr>').join('');
     panel.innerHTML = '<div class="ops-grid">' +
       opsMetric('Snapshots', snaps.length) +
-      opsMetric('Since capture', days + 'd') +
+      opsMetric('Span', days + 'd') +
       opsMetric('THP growth', withD.length ? fmtDelta(totalD) : '—') +
       opsMetric('New members', newcomers) +
       '</div>' +
-      '<div class="feature-card" style="margin-bottom:10px;"><h3>Top growth since ' + isoDate(new Date(snap.capturedAt)) + '</h3>' +
+      '<div class="feature-card" style="margin-bottom:10px;"><h3>Top growth ' + isoDate(new Date(snap.capturedAt)) + ' &rarr; ' + nowLabel + '</h3>' +
       (top.length
-        ? '<table class="ops-table"><thead><tr><th>#</th><th>Commander</th><th class="num">THP then</th><th class="num">THP now</th><th class="num">&Delta; THP</th><th class="num">&Delta; S1</th></tr></thead><tbody>' + rows + '</tbody></table>'
-        : '<p>No overlapping THP data between this snapshot and the current roster yet.</p>') +
+        ? '<table class="ops-table"><thead><tr><th>#</th><th>Commander</th><th class="num">THP then</th><th class="num">THP ' + nowLabel + '</th><th class="num">&Delta; THP</th><th class="num">&Delta; S1</th></tr></thead><tbody>' + rows + '</tbody></table>'
+        : '<p>No overlapping THP data between these two points yet.</p>') +
       '</div>';
   }
 
@@ -1822,6 +1839,8 @@
     const delBtn = document.getElementById('snapDelete');
     if (!sel || !capBtn || !delBtn) return;
     sel.addEventListener('change', () => { selectedSnapshot = sel.value || null; renderOpsPlanner(); });
+    const cmp = document.getElementById('snapCompare');
+    if (cmp) cmp.addEventListener('change', () => { snapCompareTo = cmp.value || 'current'; renderOpsPlanner(); });
     capBtn.addEventListener('click', () => {
       if (!requireEdit()) return;
       captureSnapshot();
@@ -2170,7 +2189,7 @@
     ] : []).concat((() => {
       const snap = activeSnapshots()[0];
       if (!snap) return [];
-      const ds = snapDeltas(snap).filter(d => d.dThp != null).sort((a, b) => b.dThp - a.dThp);
+      const ds = snapDeltas(snap, roster).filter(d => d.dThp != null).sort((a, b) => b.dThp - a.dThp);
       if (!ds.length) return ['Growth since ' + isoDate(new Date(snap.capturedAt)) + ': no overlapping data yet'];
       const tot = ds.reduce((s, d) => s + d.dThp, 0);
       return ['Growth since ' + isoDate(new Date(snap.capturedAt)) + ': ' + fmtDelta(tot) + ' THP; top: ' +
@@ -2715,8 +2734,8 @@
     if (!name) { st.textContent = '—'; st.className = 'rv-status'; return; }
     const m = roster.find(x => norm(x.name) === norm(name));
     if (m) { st.textContent = 'update'; st.className = 'rv-status ok'; }
-    // VS import never adds roster members — unmatched rows are skipped on apply.
-    else if (type === 'vs') { st.textContent = 'not on roster'; st.className = 'rv-status new'; }
+    // Ledger imports never add roster members — unmatched rows are skipped on apply.
+    else if (type === 'vs' || type === 'donations') { st.textContent = 'not on roster'; st.className = 'rv-status new'; }
     else { st.textContent = 'NEW'; st.className = 'rv-status new'; }
   }
 
@@ -2726,7 +2745,7 @@
       review.innerHTML = '<p class="muted">No rows detected. Try a larger / clearer screenshot, or check the screenshot type.</p>';
       return;
     }
-    const valHead = type === 'thp' ? 'Power' : type === 'vs' ? 'VS points' : 'Kills (raw)';
+    const valHead = type === 'thp' ? 'Power' : type === 'vs' ? 'VS points' : type === 'donations' ? 'Donation pts' : 'Kills (raw)';
     let html = '<table class="review"><thead><tr><th>✓</th>' +
       (type === 'thp' ? '<th>Tag</th>' : '') +
       '<th>Name</th><th>' + valHead + '</th><th>Status</th></tr></thead><tbody>';
@@ -2754,13 +2773,16 @@
   function applyReview(type) {
     if (!requireEdit()) return;
     const trs = [...document.querySelectorAll('#ocrReview tr[data-i]')];
-    // VS points land in the current Activity Ledger week, not on roster members.
-    if (type === 'vs') {
+    // VS points / donations land in the current Activity Ledger week, not on
+    // roster members. Donations map to the High/OK/Low chips by tercile of the
+    // imported ranking (raw points kept alongside as donationsRaw).
+    if (type === 'vs' || type === 'donations') {
       const ws = currentWeekStart();
       let week = activityWeeks.find(w => w.weekStart === ws);
       if (!week) { week = { weekStart: ws, members: [] }; activityWeeks.unshift(week); }
       selectedWeek = ws;
-      let logged = 0, skipped = 0;
+      const matched = [];
+      let skipped = 0;
       for (const tr of trs) {
         if (!tr.querySelector('.rv-inc').checked) continue;
         const name = tr.querySelector('.rv-name').value.trim();
@@ -2768,15 +2790,23 @@
         if (!name || !valStr) continue;
         const m = roster.find(x => norm(x.name) === norm(name));
         if (!m) { skipped++; continue; }
-        const entry = ledgerEntry(week, m.name, true);
-        entry.vs = valStr;
-        entry.updated = Date.now();
-        logged++;
+        matched.push({ name: m.name, val: parseInt(valStr, 10) });
       }
+      if (type === 'donations') {
+        const ranked = [...matched].sort((a, b) => b.val - a.val);
+        const hi = Math.ceil(ranked.length / 3), mid = Math.ceil(ranked.length * 2 / 3);
+        ranked.forEach((r, i) => { r.tier = i < hi ? 'High' : i < mid ? 'OK' : 'Low'; });
+      }
+      matched.forEach(r => {
+        const entry = ledgerEntry(week, r.name, true);
+        if (type === 'vs') entry.vs = String(r.val);
+        else { entry.donations = r.tier; entry.donationsRaw = r.val; }
+        entry.updated = Date.now();
+      });
       document.getElementById('ocrReview').innerHTML = '';
       renderOpsPlanner();
       saveState();
-      statusEl.textContent = 'Imported VS: ' + logged + ' logged into week ' + ws + (skipped ? '; ' + skipped + ' not on roster (skipped).' : '.');
+      statusEl.textContent = 'Imported ' + (type === 'vs' ? 'VS' : 'donations') + ': ' + matched.length + ' logged into week ' + ws + (skipped ? '; ' + skipped + ' not on roster (skipped).' : '.');
       const tab = document.querySelector('.ops-tab[data-view="activity"]');
       if (tab) tab.click();
       return;
@@ -2900,6 +2930,19 @@
   document.getElementById('exportOpsCsv').addEventListener('click', exportOpsCSV);
   document.getElementById('exportStormPng').addEventListener('click', exportStormPNG);
   document.getElementById('exportReportPng').addEventListener('click', exportReportPNG);
+  // Full-store JSON backup — insurance against JSONBin stale reads or a bad merge.
+  document.getElementById('backupJson').addEventListener('click', () => {
+    const payload = { exportedAt: new Date().toISOString(), core: [...core], votedYes: [...votedYes], editHash, roster, activityWeeks, stormPlans, squadSnapshots, weeklyReports };
+    const blob = new Blob([JSON.stringify(payload, null, 1)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'psd-ops-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    statusEl.textContent = 'Backup saved as ' + a.download + ' — keep one before big edit sessions.';
+  });
 
   document.getElementById('importBtn').addEventListener('click', () => {
     const p = document.getElementById('importPanel');
