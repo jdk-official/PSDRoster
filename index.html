@@ -452,6 +452,12 @@
           <option value="kills">Kills</option>
           <option value="vs">VS points (into Activity Ledger week)</option>
           <option value="donations">Donation ranking (into Activity Ledger week)</option>
+          <option value="attendance">Event attendance (tick a ledger column)</option>
+        </select>
+        <select id="ocrAttCol" hidden title="Which ledger column to tick">
+          <option value="marshal">Marshal defense</option>
+          <option value="zombie">Zombie Siege</option>
+          <option value="buster">Enemy Buster</option>
         </select>
       </label>
       <input type="file" id="ocrFile" accept="image/*" multiple>
@@ -521,7 +527,9 @@
       <div class="ledger-bar">
         <select id="ledgerWeek" class="ledger-week"></select>
         <button id="ledgerNewWeek" class="ops-copy">+ New week</button>
-        <span class="ledger-hint">Cells save to the shared store as you edit</span>
+        <button id="ledgerDeleteWeek" class="ops-copy snap-del" title="Delete selected week">&#128465;</button>
+        <button id="ledgerModeBtn" class="ops-copy">&#128200; History</button>
+        <span class="ledger-hint" id="ledgerHint">Cells save to the shared store as you edit</span>
       </div>
       <div class="ledger-wrap"><table class="ops-table" id="ledgerTable"></table></div>
       <div id="activityFeatures" class="feature-grid"></div>
@@ -808,6 +816,7 @@
   let activityWeeks = [];   // [{ weekStart, members: [{ name, vs, storm, marshal, zombie, donations, help, buster, reliability, notes, updated }] }]
   let stormPlans = [];      // [{ id, title, starters, substitutes, text, createdAt, updatedAt, deleted? }]
   let selectedWeek = null;      // weekStart shown in the Activity Ledger
+  let ledgerMode = 'week';      // 'week' = editable grid, 'history' = per-commander totals
   let selectedStormPlan = null; // stormPlans id displayed in the Storm tab (null = live draft)
   let squadSnapshots = [];      // [{ id, capturedAt, source, members: [{ name, thp, squad1..3, types, t11, kills }], updatedAt, deleted? }]
   let selectedSnapshot = null;  // snapshot id viewed in the Squad Power tab
@@ -927,25 +936,35 @@
 
   // Ledger weeks merge by weekStart; inside a week, members merge by name with
   // per-entry last-write-wins on `updated` (same rule as roster members).
+  // Deleting a week keeps a tombstone (`deleted` + `deletedTs`); a member edit
+  // made AFTER the deletion resurrects the week (that editor hadn't seen the
+  // delete). Tombstones older than 30 days are purged.
   function mergeActivityWeeks(remoteWeeks) {
     const rByWeek = new Map((Array.isArray(remoteWeeks) ? remoteWeeks : []).map(w => [w.weekStart, w]));
     const lByWeek = new Map(activityWeeks.map(w => [w.weekStart, w]));
     const merged = [];
     new Set([...rByWeek.keys(), ...lByWeek.keys()]).forEach(ws => {
       const lw = lByWeek.get(ws), rw = rByWeek.get(ws);
-      if (!lw || !rw) { merged.push(lw || rw); return; }
-      const rm = new Map((rw.members || []).map(m => [m.name, m]));
-      const lm = new Map((lw.members || []).map(m => [m.name, m]));
-      const members = [];
-      new Set([...rm.keys(), ...lm.keys()]).forEach(n => {
-        const a = lm.get(n), b = rm.get(n);
-        if (a && b) members.push((a.updated || 0) > (b.updated || 0) ? a : b);
-        else members.push(a || b);
-      });
-      merged.push({ weekStart: ws, members });
+      let members;
+      if (!lw || !rw) {
+        members = (lw || rw).members || [];
+      } else {
+        const rm = new Map((rw.members || []).map(m => [m.name, m]));
+        const lm = new Map((lw.members || []).map(m => [m.name, m]));
+        members = [];
+        new Set([...rm.keys(), ...lm.keys()]).forEach(n => {
+          const a = lm.get(n), b = rm.get(n);
+          if (a && b) members.push((a.updated || 0) > (b.updated || 0) ? a : b);
+          else members.push(a || b);
+        });
+      }
+      const tomb = [lw, rw].filter(w => w && w.deleted).sort((a, b) => (b.deletedTs || 0) - (a.deletedTs || 0))[0];
+      const latestEdit = members.reduce((s, m) => Math.max(s, m.updated || 0), 0);
+      if (tomb && (tomb.deletedTs || 0) >= latestEdit) merged.push({ weekStart: ws, members, deleted: true, deletedTs: tomb.deletedTs || 0 });
+      else merged.push({ weekStart: ws, members });
     });
     merged.sort((a, b) => a.weekStart < b.weekStart ? 1 : -1); // newest first
-    return merged;
+    return merged.filter(w => !w.deleted || Date.now() - (w.deletedTs || 0) < 30 * 86400e3);
   }
 
   // Id-keyed collections (storm plans, squad snapshots) merge by id with
@@ -1472,8 +1491,20 @@
     opsSaveTimer = setTimeout(() => { opsSaveTimer = null; saveState(); }, 1200);
   }
 
+  function activeLedgerWeeks() { return activityWeeks.filter(w => !w.deleted); }
+
   function ledgerWeek() {
-    return activityWeeks.find(w => w.weekStart === selectedWeek) || activityWeeks[0] || null;
+    const weeks = activeLedgerWeeks();
+    return weeks.find(w => w.weekStart === selectedWeek) || weeks[0] || null;
+  }
+
+  // Reuse (and resurrect, if tombstoned) the week for the given start date,
+  // creating it when absent. All ledger writes go through this.
+  function ensureLedgerWeek(ws) {
+    let week = activityWeeks.find(w => w.weekStart === ws);
+    if (week && week.deleted) { delete week.deleted; delete week.deletedTs; }
+    if (!week) { week = { weekStart: ws, members: [] }; activityWeeks.unshift(week); }
+    return week;
   }
   function ledgerEntry(week, name, create) {
     let e = (week.members || (week.members = [])).find(m => m.name === name);
@@ -1487,14 +1518,66 @@
     return '<span class="ops-chip ' + (col.tones[val] || 'off') + '">' + escAttr(val) + '</span>';
   }
 
+  function ledgerMembersSorted() {
+    return [...roster].sort((a, b) => (core.has(b.name) - core.has(a.name)) || a.name.localeCompare(b.name));
+  }
+
+  // History mode: per-commander totals across every (non-deleted) ledger week.
+  function renderLedgerHistory(table) {
+    const weeks = activeLedgerWeeks(); // newest first
+    if (!weeks.length) {
+      table.innerHTML = '<tbody><tr><td class="muted">No ledger weeks yet &mdash; history appears once weeks are logged.</td></tr></tbody>';
+      return;
+    }
+    const head = '<thead><tr><th>Commander</th><th class="num">Weeks</th><th class="num">VS logged</th><th class="num">VS total</th><th>Storm S/B/M</th><th class="num">Marshal</th><th class="num">Zombie</th><th class="num">Buster</th><th>Last reliability</th></tr></thead>';
+    const rows = ledgerMembersSorted().map(m => {
+      let seen = 0, vsLogged = 0, vsTotal = 0, marshal = 0, zombie = 0, buster = 0, lastRel = '';
+      const st = { Starter: 0, Sub: 0, Missed: 0 };
+      weeks.forEach(w => {
+        const e = (w.members || []).find(x => x.name === m.name);
+        if (!e) return;
+        seen++;
+        if (e.vs != null && e.vs !== '') { vsLogged++; vsTotal += Number(String(e.vs).replace(/[^\d.]/g, '')) || 0; }
+        if (st[e.storm] != null) st[e.storm]++;
+        if (e.marshal) marshal++;
+        if (e.zombie) zombie++;
+        if (e.buster) buster++;
+        if (e.reliability && !lastRel) lastRel = e.reliability; // weeks are newest-first
+      });
+      const relCol = LEDGER_COL_BY_KEY.reliability;
+      return '<tr><td>' + (core.has(m.name) ? '&#9733; ' : '') + escAttr(m.name) + '</td>' +
+        '<td class="num">' + seen + '/' + weeks.length + '</td>' +
+        '<td class="num">' + vsLogged + '</td>' +
+        '<td class="num">' + (vsTotal >= 1e6 ? fmtM(vsTotal) : Math.round(vsTotal * 10) / 10 || '&mdash;') + '</td>' +
+        '<td>' + st.Starter + ' / ' + st.Sub + ' / ' + st.Missed + '</td>' +
+        '<td class="num">' + marshal + '</td>' +
+        '<td class="num">' + zombie + '</td>' +
+        '<td class="num">' + buster + '</td>' +
+        '<td>' + (lastRel ? ledgerChip(relCol, lastRel) : '<span class="ops-chip off">&mdash;</span>') + '</td></tr>';
+    }).join('');
+    table.innerHTML = head + '<tbody>' + rows + '</tbody>';
+  }
+
   function renderLedger() {
     const table = document.getElementById('ledgerTable');
     const sel = document.getElementById('ledgerWeek');
     if (!table || !sel) return;
+    const newBtn = document.getElementById('ledgerNewWeek');
+    const delBtn = document.getElementById('ledgerDeleteWeek');
+    const modeBtn = document.getElementById('ledgerModeBtn');
+    const hint = document.getElementById('ledgerHint');
+    const history = ledgerMode === 'history';
+    sel.hidden = history;
+    if (newBtn) newBtn.hidden = history;
+    if (delBtn) delBtn.hidden = history;
+    if (modeBtn) modeBtn.innerHTML = history ? '&#128197; This week' : '&#128200; History';
+    if (hint) hint.textContent = history ? 'Totals across every logged week' : 'Cells save to the shared store as you edit';
+    if (history) { renderLedgerHistory(table); return; }
+    const weeks = activeLedgerWeeks();
     const week = ledgerWeek();
     if (week) selectedWeek = week.weekStart;
-    sel.innerHTML = activityWeeks.length
-      ? activityWeeks.map(w => '<option value="' + escAttr(w.weekStart) + '">Week of ' + escAttr(w.weekStart) + '</option>').join('')
+    sel.innerHTML = weeks.length
+      ? weeks.map(w => '<option value="' + escAttr(w.weekStart) + '">Week of ' + escAttr(w.weekStart) + '</option>').join('')
       : '<option value="">No weeks yet</option>';
     sel.value = selectedWeek || '';
     if (!week) {
@@ -1551,10 +1634,35 @@
     newBtn.addEventListener('click', () => {
       if (!requireEdit()) return;
       const ws = currentWeekStart();
-      if (!activityWeeks.some(w => w.weekStart === ws)) activityWeeks.unshift({ weekStart: ws, members: [] });
+      ensureLedgerWeek(ws);
       selectedWeek = ws;
       renderOpsPlanner();
       scheduleOpsSave();
+    });
+    const delBtn = document.getElementById('ledgerDeleteWeek');
+    if (delBtn) delBtn.addEventListener('click', () => {
+      if (!requireEdit()) return;
+      const week = ledgerWeek();
+      if (!week) return;
+      // Two-tap delete, same pattern as plans and snapshots.
+      if (!delBtn.classList.contains('confirm')) {
+        delBtn.classList.add('confirm');
+        delBtn.textContent = 'sure?';
+        setTimeout(() => { delBtn.classList.remove('confirm'); delBtn.innerHTML = '&#128465;'; }, 2500);
+        return;
+      }
+      delBtn.classList.remove('confirm');
+      delBtn.innerHTML = '&#128465;';
+      week.deleted = true;
+      week.deletedTs = Date.now();
+      selectedWeek = null;
+      renderOpsPlanner();
+      scheduleOpsSave();
+    });
+    const modeBtn = document.getElementById('ledgerModeBtn');
+    if (modeBtn) modeBtn.addEventListener('click', () => {
+      ledgerMode = ledgerMode === 'week' ? 'history' : 'week';
+      renderOpsPlanner();
     });
     table.addEventListener('click', e => {
       const td = e.target.closest('td[data-key]');
@@ -2737,7 +2845,7 @@
     const m = roster.find(x => norm(x.name) === norm(name));
     if (m) { st.textContent = 'update'; st.className = 'rv-status ok'; }
     // Ledger imports never add roster members — unmatched rows are skipped on apply.
-    else if (type === 'vs' || type === 'donations') { st.textContent = 'not on roster'; st.className = 'rv-status new'; }
+    else if (type === 'vs' || type === 'donations' || type === 'attendance') { st.textContent = 'not on roster'; st.className = 'rv-status new'; }
     else { st.textContent = 'NEW'; st.className = 'rv-status new'; }
   }
 
@@ -2747,7 +2855,7 @@
       review.innerHTML = '<p class="muted">No rows detected. Try a larger / clearer screenshot, or check the screenshot type.</p>';
       return;
     }
-    const valHead = type === 'thp' ? 'Power' : type === 'vs' ? 'VS points' : type === 'donations' ? 'Donation pts' : 'Kills (raw)';
+    const valHead = type === 'thp' ? 'Power' : type === 'vs' ? 'VS points' : type === 'donations' ? 'Donation pts' : type === 'attendance' ? 'Points' : 'Kills (raw)';
     let html = '<table class="review"><thead><tr><th>✓</th>' +
       (type === 'thp' ? '<th>Tag</th>' : '') +
       '<th>Name</th><th>' + valHead + '</th><th>Status</th></tr></thead><tbody>';
@@ -2778,10 +2886,10 @@
     // VS points / donations land in the current Activity Ledger week, not on
     // roster members. Donations map to the High/OK/Low chips by tercile of the
     // imported ranking (raw points kept alongside as donationsRaw).
-    if (type === 'vs' || type === 'donations') {
+    if (type === 'vs' || type === 'donations' || type === 'attendance') {
       const ws = currentWeekStart();
-      let week = activityWeeks.find(w => w.weekStart === ws);
-      if (!week) { week = { weekStart: ws, members: [] }; activityWeeks.unshift(week); }
+      const week = ensureLedgerWeek(ws);
+      const attCol = type === 'attendance' ? document.getElementById('ocrAttCol').value : null;
       selectedWeek = ws;
       const matched = [];
       let skipped = 0;
@@ -2802,13 +2910,15 @@
       matched.forEach(r => {
         const entry = ledgerEntry(week, r.name, true);
         if (type === 'vs') entry.vs = String(r.val);
+        else if (type === 'attendance') entry[attCol] = true;
         else { entry.donations = r.tier; entry.donationsRaw = r.val; }
         entry.updated = Date.now();
       });
       document.getElementById('ocrReview').innerHTML = '';
       renderOpsPlanner();
       saveState();
-      statusEl.textContent = 'Imported ' + (type === 'vs' ? 'VS' : 'donations') + ': ' + matched.length + ' logged into week ' + ws + (skipped ? '; ' + skipped + ' not on roster (skipped).' : '.');
+      const what = type === 'vs' ? 'VS' : type === 'attendance' ? attCol + ' attendance' : 'donations';
+      statusEl.textContent = 'Imported ' + what + ': ' + matched.length + ' logged into week ' + ws + (skipped ? '; ' + skipped + ' not on roster (skipped).' : '.');
       const tab = document.querySelector('.ops-tab[data-view="activity"]');
       if (tab) tab.click();
       return;
@@ -2944,6 +3054,11 @@
     a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     statusEl.textContent = 'Backup saved as ' + a.download + ' — keep one before big edit sessions.';
+  });
+  // The attendance import needs a target column; show the picker only for it.
+  const ocrTypeSel = document.getElementById('ocrType');
+  ocrTypeSel.addEventListener('change', () => {
+    document.getElementById('ocrAttCol').hidden = ocrTypeSel.value !== 'attendance';
   });
 
   document.getElementById('importBtn').addEventListener('click', () => {

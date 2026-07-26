@@ -1,0 +1,48 @@
+name: Nightly store backup
+
+# Fetches the shared Firebase store every night and commits a dated snapshot
+# into backups/auto/. Reads are public, so no secrets are needed. The
+# edit-password hash is stripped before committing (it lives in the store
+# itself; it doesn't belong in git history).
+
+on:
+  schedule:
+    - cron: '17 3 * * *' # 03:17 UTC daily
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch store
+        run: |
+          mkdir -p backups/auto
+          curl -sSf 'https://roster-ae459-default-rtdb.europe-west1.firebasedatabase.app/store.json' \
+            -o "backups/auto/store-$(date -u +%F).json"
+
+      - name: Validate and strip editHash
+        run: |
+          python3 - <<'EOF'
+          import glob, json
+          path = sorted(glob.glob('backups/auto/store-*.json'))[-1]
+          with open(path, encoding='utf-8') as f:
+              data = json.load(f)
+          assert isinstance(data.get('roster'), list) and data['roster'], 'store looks empty - refusing to commit'
+          data.pop('editHash', None)
+          with open(path, 'w', encoding='utf-8') as f:
+              json.dump(data, f, ensure_ascii=False, indent=1)
+          print(f'{path}: {len(data["roster"])} members')
+          EOF
+
+      - name: Commit if changed
+        run: |
+          git config user.name 'roster-backup-bot'
+          git config user.email 'actions-bot@users.noreply.github.com'
+          git add backups/auto
+          git diff --cached --quiet || git commit -m "Auto-backup store $(date -u +%F)"
+          git push
