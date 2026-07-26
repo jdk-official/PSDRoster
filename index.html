@@ -86,21 +86,21 @@
   .pipe-bar { display: flex; height: 24px; border-radius: 7px; overflow: hidden; }
   .pipe-seg { display: flex; align-items: center; justify-content: center; gap: 3px; font-size: 0.72rem; font-weight: 800; color: #fff; min-width: 36px; }
   .seg-no { background: #8a4646; }
-  .seg-wait { background: #3572c2; }
   .seg-ok { background: #268355; }
   .pipe-empty { color: #7e90a6; font-size: 0.75rem; }
   .pipe-legend { display: flex; gap: 12px; margin-top: 5px; font-size: 0.62rem; color: #9fb0c4; flex-wrap: wrap; }
   .pipe-legend .dot { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 3px; }
-  .dot-no { background: #8a4646; } .dot-wait { background: #3572c2; } .dot-ok { background: #268355; }
-  .bal-vs { color: #9fb0c4; font-weight: 400; text-transform: none; }
+  .dot-no { background: #8a4646; } .dot-ok { background: #268355; }
   .bal-row { display: flex; align-items: center; gap: 7px; padding: 1.5px 0; font-size: 0.7rem; }
-  .bal-metric { width: 34px; color: #9fb0c4; text-transform: uppercase; font-size: 0.6rem; letter-spacing: 0.4px; }
-  .bal-val { width: 48px; font-family: var(--lw-font-data); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .bal-psd { text-align: right; color: #7fd6cd; }
-  .bal-spnx { color: #e6a8cc; }
-  .bal-track { flex: 1; height: 8px; border-radius: 4px; background: #a34a7d; overflow: hidden; position: relative; }
-  .bal-fill-psd { height: 100%; background: #2b9187; }
-  .bal-track::after { content: ""; position: absolute; left: 50%; top: -1px; bottom: -1px; width: 2px; background: rgba(255,255,255,0.55); }
+  .bal-metric { width: 56px; color: var(--lw-text-2); text-transform: uppercase; font-size: 0.6rem; letter-spacing: 0.4px; }
+  .bal-val { width: 22px; font-family: var(--lw-font-data); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+  .type-track { flex: 1; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.1); overflow: hidden; }
+  .type-fill { display: block; height: 100%; border-radius: 4px; }
+  .type-Tank { background: #60a5fa; }
+  .type-Air { background: #00e87a; }
+  .type-Missile { background: #f87171; }
+  .bal-t11 { font-family: var(--lw-font-data); font-size: 0.6rem; color: var(--lw-text-2); width: 42px; text-align: right; }
+  .type-note { font-family: var(--lw-font-data); font-size: 0.6rem; color: var(--lw-text-3); margin-top: 3px; }
   /* Farm "RSS feed" ticker */
   .farm-ticker { display: flex; align-items: center; gap: 0; background: var(--lw-glass-bg); border: 1px solid var(--lw-glass-border); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
   .farm-live { display: inline-flex; align-items: center; gap: 5px; background: rgba(248,113,113,0.16); color: #f87171; font-family: var(--lw-font-data); font-size: 0.64rem; font-weight: 700; letter-spacing: 0.09em; padding: 6px 10px; flex-shrink: 0; }
@@ -415,26 +415,26 @@
     </div>
   </div>
 
-  <!-- Dashboard band: roster counts, transfer readiness, PSD/SPnX balance. -->
+  <!-- Dashboard band: roster counts, activity pulse, squad type balance. -->
   <div class="dash">
     <div class="dash-card dash-counts">
       <div class="dash-label">Roster</div>
       <div class="count-row"><span class="count-k">Members</span><span class="count-v" id="memberCount">&mdash;</span></div>
-      <div class="count-row"><span class="count-k">Voted Yes</span><span class="count-v" id="votedCount">&mdash;</span></div>
       <div class="count-row"><span class="count-k">Core</span><span class="count-v" id="coreCount">&mdash;</span></div>
+      <div class="count-row"><span class="count-k">T11 confirmed</span><span class="count-v" id="t11DashCount">&mdash;</span></div>
     </div>
     <div class="dash-card dash-pipe">
-      <div class="dash-label">Readiness pipeline &middot; Core</div>
-      <div class="pipe-bar" id="pipeBar"></div>
+      <div class="dash-label">Activity pulse &middot; <span id="pulseWeek">no week yet</span></div>
+      <div class="pipe-bar" id="pulseBar"></div>
       <div class="pipe-legend">
-        <span><i class="dot dot-no"></i>not submitted</span>
-        <span><i class="dot dot-wait"></i>waiting approval</span>
-        <span><i class="dot dot-ok"></i>approved</span>
+        <span><i class="dot dot-ok"></i>VS logged</span>
+        <span><i class="dot dot-no"></i>missing</span>
+        <span id="pulseFlags"></span>
       </div>
     </div>
     <div class="dash-card dash-balance">
-      <div class="dash-label">PSD <span class="bal-vs">vs</span> SPnX</div>
-      <div id="balanceRows"></div>
+      <div class="dash-label">Squad types &middot; S1</div>
+      <div id="typeRows"></div>
     </div>
   </div>
 
@@ -1350,60 +1350,11 @@
 
   function updateStats() {
     document.getElementById('memberCount').textContent = roster.length;
-
-    // Transfer pipeline funnel across Core members: not submitted → waiting → approved.
-    const coreMembers = roster.filter(m => core.has(m.name));
-    const pipeNo = coreMembers.filter(m => !m.submitted && !m.approved).length;
-    const pipeWait = coreMembers.filter(m => m.submitted && !m.approved).length;
-    const pipeOk = coreMembers.filter(m => m.approved).length;
-    const segs = [
-      { n: pipeNo, cls: 'seg-no', label: 'Not submitted', icon: '✗' },
-      { n: pipeWait, cls: 'seg-wait', label: 'Submitted — waiting approval', icon: '📨' },
-      { n: pipeOk, cls: 'seg-ok', label: 'Approved', icon: '🤝' }
-    ];
-    document.getElementById('pipeBar').innerHTML = coreMembers.length
-      ? segs.filter(s => s.n > 0).map(s =>
-          '<div class="pipe-seg ' + s.cls + '" style="flex:' + s.n + '" title="' + s.label + ': ' + s.n + ' of ' + coreMembers.length + '">' + s.icon + ' ' + s.n + '</div>').join('')
-      : '<div class="pipe-empty">no core members marked yet</div>';
-
-    // PSD vs SPnX balance bars — split point shows each side's share of the total.
-    const balMetrics = [
-      { label: 'Seats', f: ms => ms.length, fmt: v => String(v) },
-      { label: 'THP', f: ms => ms.reduce((s, m) => s + (m.thp || 0), 0), fmt: v => (v / 1e9).toFixed(2) + 'B' },
-      { label: 'T1', f: ms => ms.reduce((s, m) => s + (m.squad1 || 0), 0), fmt: v => (v / 1e6).toFixed(0) + 'M' },
-      { label: 'Kills', f: ms => ms.reduce((s, m) => s + (Number(m.kills) || 0), 0), fmt: v => v.toFixed(1) + 'M' }
-    ];
-    const psdM = roster.filter(m => m.targetAlliance === 'PSD');
-    const spnxM = roster.filter(m => m.targetAlliance === 'SPnX');
-    document.getElementById('balanceRows').innerHTML = balMetrics.map(mt => {
-      const a = mt.f(psdM), b = mt.f(spnxM), tot = a + b;
-      const pa = tot ? (a / tot * 100) : 50;
-      return '<div class="bal-row" title="PSD ' + mt.fmt(a) + ' · SPnX ' + mt.fmt(b) + '">' +
-        '<span class="bal-metric">' + mt.label + '</span>' +
-        '<span class="bal-val bal-psd">' + mt.fmt(a) + '</span>' +
-        '<div class="bal-track"><div class="bal-fill-psd" style="width:' + pa.toFixed(1) + '%"></div></div>' +
-        '<span class="bal-val bal-spnx">' + mt.fmt(b) + '</span></div>';
-    }).join('');
+    document.getElementById('coreCount').textContent = core.size;
+    document.getElementById('t11DashCount').textContent = roster.filter(m => m.t11 === 'Yes' || m.t11 === true).length;
     updateFarmTicker();
-
-    // Count + breakdown of a member set's declared Seat Colour (badges only
-    // once at least one member has a colour; n/a = colour not yet set).
-    const seatBreakdown = set => {
-      const counts = { Gold: 0, Purple: 0, Blue: 0, White: 0, na: 0 };
-      roster.forEach(m => {
-        if (!set.has(m.name)) return;
-        if (m.seatColour) counts[m.seatColour] = (counts[m.seatColour] || 0) + 1; else counts.na++;
-      });
-      let html = String(set.size);
-      if (counts.Gold + counts.Purple + counts.Blue + counts.White > 0) {
-        html += ' ' + ['Gold', 'Purple', 'Blue', 'White'].filter(c => counts[c])
-          .map(c => '<span class="seat-badge seat-' + c + '" title="' + c + '">' + counts[c] + '</span>').join(' ');
-        if (counts.na) html += ' <span class="seat-na">' + counts.na + ' n/a</span>';
-      }
-      return html;
-    };
-    document.getElementById('votedCount').innerHTML = seatBreakdown(votedYes);
-    document.getElementById('coreCount').innerHTML = seatBreakdown(core);
+    // The activity-pulse and squad-type dash cards render inside
+    // renderOpsPlanner, which already computes the week and type tallies.
     renderOpsPlanner();
   }
 
@@ -2160,6 +2111,25 @@
     const flagged = week ? (week.members || []).filter(e => ['Needs nudge', 'Away', 'No-show'].includes(e.reliability)) : [];
     const needVs = week ? roster.filter(m => !hasVs(m)) : [];
 
+    // Dash band: activity pulse from the selected ledger week.
+    const pulseBar = document.getElementById('pulseBar');
+    if (pulseBar) {
+      const pulseWeekEl = document.getElementById('pulseWeek');
+      const pulseFlags = document.getElementById('pulseFlags');
+      if (week && roster.length) {
+        if (pulseWeekEl) pulseWeekEl.textContent = 'wk ' + week.weekStart.slice(5);
+        const missing = roster.length - vsLogged;
+        pulseBar.innerHTML =
+          (vsLogged ? '<div class="pipe-seg seg-ok" style="flex:' + vsLogged + '" title="VS logged: ' + vsLogged + ' of ' + roster.length + '">✓ ' + vsLogged + '</div>' : '') +
+          (missing ? '<div class="pipe-seg seg-no" style="flex:' + missing + '" title="No VS score yet: ' + missing + '">' + missing + '</div>' : '');
+        if (pulseFlags) pulseFlags.textContent = flagged.length ? '⚑ ' + flagged.length + ' flagged' : '';
+      } else {
+        if (pulseWeekEl) pulseWeekEl.textContent = 'no week yet';
+        pulseBar.innerHTML = '<div class="pipe-empty">start a ledger week to track VS coverage</div>';
+        if (pulseFlags) pulseFlags.textContent = '';
+      }
+    }
+
     const activitySummary = document.getElementById('activitySummary');
     if (activitySummary) activitySummary.innerHTML = (week ? [
       opsMetric('Week start', week.weekStart.slice(5)),
@@ -2200,6 +2170,19 @@
     });
     const typed = typeCounts.Tank + typeCounts.Air + typeCounts.Missile;
     const weakestType = ['Tank', 'Air', 'Missile'].sort((a, b) => typeCounts[a] - typeCounts[b])[0];
+
+    // Dash band: Squad-1 type balance bars.
+    const typeRowsEl = document.getElementById('typeRows');
+    if (typeRowsEl) {
+      const maxT = Math.max(1, typeCounts.Tank, typeCounts.Air, typeCounts.Missile);
+      typeRowsEl.innerHTML = ['Tank', 'Air', 'Missile'].map(t =>
+        '<div class="bal-row" title="' + t + ': ' + typeCounts[t] + ' (T11: ' + typeT11[t] + ')">' +
+        '<span class="bal-metric">' + SQUAD_TYPE_ICON[t] + ' ' + t + '</span>' +
+        '<span class="bal-val">' + typeCounts[t] + '</span>' +
+        '<div class="type-track"><i class="type-fill type-' + t + '" style="width:' + (typeCounts[t] / maxT * 100).toFixed(0) + '%"></i></div>' +
+        '<span class="bal-t11">T11 ' + typeT11[t] + '</span></div>').join('') +
+        (typed < roster.length ? '<div class="type-note">' + (roster.length - typed) + ' untyped</div>' : '');
+    }
 
     const squadFeatures = document.getElementById('squadFeatures');
     if (squadFeatures) squadFeatures.innerHTML = [
